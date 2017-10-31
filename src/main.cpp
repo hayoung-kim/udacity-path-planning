@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 using namespace std;
 
@@ -243,14 +244,16 @@ int main() {
             double pos_x;
             double pos_y;
             double angle;
-            int path_size = previous_path_x.size();
+            int prev_path_size = previous_path_x.size();
 
-            for(int i=0; i<path_size; i++) {
+            // set previous path
+            for(int i=0; i<prev_path_size; i++) {
               next_x_vals.push_back(previous_path_x[i]);
               next_y_vals.push_back(previous_path_y[i]);
             }
 
-            if(path_size == 0) {
+            // get the remaining trajectory starting point
+            if(prev_path_size == 0) {
               pos_x = car_x;
               pos_y = car_y;
               angle = deg2rad(car_yaw);
@@ -268,7 +271,7 @@ int main() {
             }
 
             double dist_inc = 0.5;
-            for(int i=0; i<50-path_size; i++) {
+            for(int i=0; i<50-prev_path_size; i++) {
               double next_s = car_s + (i+1) * dist_inc;
               double next_d = 6;
               vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
