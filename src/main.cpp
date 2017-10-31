@@ -262,14 +262,18 @@ int main() {
               double pos_x2 = previous_path_x[path_size-2];
               double pos_y2 = previous_path_y[path_size-2];
               angle = atan2(pos_y-pos_y2, pos_x-pos_x2);
+
+              vector<double> Frenets = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
+              car_s = Frenets[0];
             }
 
             double dist_inc = 0.5;
             for(int i=0; i<50-path_size; i++) {
-              next_x_vals.push_back(pos_x + dist_inc * cos(angle + (i+1) * pi()/100));
-              next_y_vals.push_back(pos_y + dist_inc * sin(angle + (i+1) * pi()/100));
-              pos_x += dist_inc * cos(angle + (i+1) * pi() / 100);
-              pos_y += dist_inc * sin(angle + (i+1) * pi() / 100);
+              double next_s = car_s + (i+1) * dist_inc;
+              double next_d = 6;
+              vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              next_x_vals.push_back(xy[0]);
+              next_y_vals.push_back(xy[1]);
             }
 
           	msgJson["next_x"] = next_x_vals;
