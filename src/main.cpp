@@ -197,7 +197,10 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  double target_speed = 1.0; // m/s
+  double lane = 1.0;
+
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &target_speed, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -243,12 +246,12 @@ int main() {
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
             int prev_path_size = previous_path_x.size();
-            double target_speed = 48; // m/s
-            double lane = 1;
+
+
 
             // sensor Fusion
             bool too_close = false;
-            double safe_distance = 80.0;
+            double safe_distance = 50.0;
 
             for (int i=0; i<sensor_fusion.size(); i++) {
               float d = sensor_fusion[i][6];
@@ -264,17 +267,17 @@ int main() {
                 bool is_car_close_front_of_me = (s_other > car_s) && (s_other - car_s < safe_distance);
 
                 if (is_car_close_front_of_me) {
-                  target_speed = speed_other - 1.0;
+                  too_close = true;
                 }
 
               }
             }
-
-
-
-
-
-
+            if (too_close) {
+              target_speed -= 0.224;
+            }
+            else if (target_speed < 48) {
+              target_speed += 0.224;
+            }
 
             // path planning
             double pos_x;
@@ -295,6 +298,8 @@ int main() {
               pos_x = car_x;
               pos_y = car_y;
               pos_yaw = deg2rad(car_yaw);
+              points_for_ref_x.push_back(pos_x);
+              points_for_ref_y.push_back(pos_y);
             }
             else {
               pos_x = previous_path_x[prev_path_size-1];
@@ -311,9 +316,9 @@ int main() {
             }
 
             // get points for making reference trajectory
-            vector<double> next_waypoints_1 = getXY(car_s + 40, 2+4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_waypoints_2 = getXY(car_s + 80, 2+4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_waypoints_3 = getXY(car_s + 120, 2+4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_waypoints_1 = getXY(car_s + 40, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_waypoints_2 = getXY(car_s + 80, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_waypoints_3 = getXY(car_s + 120, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
             points_for_ref_x.push_back(next_waypoints_1[0]);
             points_for_ref_x.push_back(next_waypoints_2[0]);
