@@ -241,10 +241,46 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+
+            int prev_path_size = previous_path_x.size();
+            double target_speed = 48; // m/s
+            double lane = 1;
+
+            // sensor Fusion
+            bool too_close = false;
+            double safe_distance = 80.0;
+
+            for (int i=0; i<sensor_fusion.size(); i++) {
+              float d = sensor_fusion[i][6];
+              bool is_car_in_my_lane = ((d < 2+4*lane+2) && (d >2+4*lane-2));
+              if (is_car_in_my_lane) {
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double speed_other = sqrt(vx*vx + vy*vy);
+                double s_other = sensor_fusion[i][5];
+
+                s_other += (double)prev_path_size*0.02*speed_other;
+
+                bool is_car_close_front_of_me = (s_other > car_s) && (s_other - car_s < safe_distance);
+
+                if (is_car_close_front_of_me) {
+                  target_speed = speed_other - 1.0;
+                }
+
+              }
+            }
+
+
+
+
+
+
+
+            // path planning
             double pos_x;
             double pos_y;
             double pos_yaw;
-            int prev_path_size = previous_path_x.size();
+
             vector<double> points_for_ref_x;
             vector<double> points_for_ref_y;
 
@@ -300,23 +336,22 @@ int main() {
             s.set_points(points_for_ref_x, points_for_ref_y);
 
             // get trajectory points
-            double target_speed = 21.9; // m/s
+
             double target_x = 30.0;
             double target_y  = s(target_x);
             double target_dist = sqrt(target_x*target_x + target_y*target_y);
-            // cout << "target_x:" << target_x << "target_y" << target_y << "target_dist" << target_dist << endl;
 
             double x_reference_prev = 0;
 
-            cout << " ------------------------- " << endl;
+            // cout << " ------------------------- " << endl;
 
             for(int i=0; i<50-prev_path_size; i++) {
-              double N = target_dist/(0.02*target_speed);
+              double N = target_dist/(0.02*target_speed/2.24); // MPH
               double x_reference = x_reference_prev + target_x/N;
               double y_reference = s(x_reference);
 
               x_reference_prev = x_reference;
-              cout << "(x,y):  " << x_reference << ", " <<  y_reference << endl;
+              // cout << "(x,y):  " << x_reference << ", " <<  y_reference << endl;
 
 
               // TRANSFORM TO GLOBAL COORDINATES
