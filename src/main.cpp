@@ -243,8 +243,10 @@ int main() {
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             double pos_x;
             double pos_y;
-            double angle;
+            double pos_yaw;
             int prev_path_size = previous_path_x.size();
+            vector<double> points_for_ref_x;
+            vector<double> points_for_ref_y;
 
             // set previous path
             for(int i=0; i<prev_path_size; i++) {
@@ -256,27 +258,77 @@ int main() {
             if(prev_path_size == 0) {
               pos_x = car_x;
               pos_y = car_y;
-              angle = deg2rad(car_yaw);
+              pos_yaw = deg2rad(car_yaw);
             }
             else {
-              pos_x = previous_path_x[path_size-1];
-              pos_y = previous_path_y[path_size-1];
+              pos_x = previous_path_x[prev_path_size-1];
+              pos_y = previous_path_y[prev_path_size-1];
 
-              double pos_x2 = previous_path_x[path_size-2];
-              double pos_y2 = previous_path_y[path_size-2];
-              angle = atan2(pos_y-pos_y2, pos_x-pos_x2);
+              double pos_x_prev = previous_path_x[prev_path_size-2];
+              double pos_y_prev = previous_path_y[prev_path_size-2];
+              pos_yaw = atan2(pos_y-pos_y_prev, pos_x-pos_x_prev);
 
-              vector<double> Frenets = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
-              car_s = Frenets[0];
+              points_for_ref_x.push_back(pos_x_prev);
+              points_for_ref_x.push_back(pos_x);
+              points_for_ref_y.push_back(pos_y_prev);
+              points_for_ref_y.push_back(pos_y);
             }
 
-            double dist_inc = 0.5;
+            // get points for making reference trajectory
+            vector<double> next_waypoints_1 = getXY(car_s + 40, 2+4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_waypoints_2 = getXY(car_s + 80, 2+4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_waypoints_3 = getXY(car_s + 120, 2+4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+            points_for_ref_x.push_back(next_waypoints_1[0]);
+            points_for_ref_x.push_back(next_waypoints_2[0]);
+            points_for_ref_x.push_back(next_waypoints_3[0]);
+
+            points_for_ref_y.push_back(next_waypoints_1[1]);
+            points_for_ref_y.push_back(next_waypoints_2[1]);
+            points_for_ref_y.push_back(next_waypoints_3[1]);
+
+            // TRANSFORM TO VEHICLE LOCAL COORDINATES
+            for(int i=0; i<points_for_ref_x.size(); i++) {
+              double x_local = points_for_ref_x[i] - pos_x;
+              double y_local = points_for_ref_y[i] - pos_y;
+              points_for_ref_x[i] = x_local * cos(0 - pos_yaw) - y_local * sin(0 - pos_yaw);
+              points_for_ref_y[i] = x_local * sin(0 - pos_yaw) + y_local * cos(0 - pos_yaw);
+            }
+
+            // fit spline
+            tk::spline s;
+            s.set_points(points_for_ref_x, points_for_ref_y);
+
+            // get trajectory points
+            double target_speed = 21.9; // m/s
+            double target_x = 30.0;
+            double target_y  = s(target_x);
+            double target_dist = sqrt(target_x*target_x + target_y*target_y);
+            // cout << "target_x:" << target_x << "target_y" << target_y << "target_dist" << target_dist << endl;
+
+            double x_reference_prev = 0;
+
+            cout << " ------------------------- " << endl;
+
             for(int i=0; i<50-prev_path_size; i++) {
-              double next_s = car_s + (i+1) * dist_inc;
-              double next_d = 6;
-              vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-              next_x_vals.push_back(xy[0]);
-              next_y_vals.push_back(xy[1]);
+              double N = target_dist/(0.02*target_speed);
+              double x_reference = x_reference_prev + target_x/N;
+              double y_reference = s(x_reference);
+
+              x_reference_prev = x_reference;
+              cout << "(x,y):  " << x_reference << ", " <<  y_reference << endl;
+
+
+              // TRANSFORM TO GLOBAL COORDINATES
+              double x_reference_global;
+              double y_reference_global;
+              x_reference_global = x_reference * cos(pos_yaw) - y_reference * sin(pos_yaw);
+              y_reference_global = x_reference * sin(pos_yaw) + y_reference * cos(pos_yaw);
+              x_reference_global += pos_x;
+              y_reference_global += pos_y;
+
+              next_x_vals.push_back(x_reference_global);
+              next_y_vals.push_back(y_reference_global);
             }
 
           	msgJson["next_x"] = next_x_vals;
