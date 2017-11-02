@@ -5,12 +5,15 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
+#include "Eigen-3.3/Eigen/Dense"
 #include "json.hpp"
 #include "spline.h"
 
 using namespace std;
+using namespace Eigen;
 
 // for convenience
 using json = nlohmann::json;
@@ -160,7 +163,44 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
+// MY PERSONAL FUNCTIONS
+VectorXd getPolynomialCoeffs(\
+  double s0, double s0_dot, double s0_ddot, \
+  double st, double st_dot, double st_ddot, \
+  double T_terminal) {
+  // return polynomial coeffs p = a0 + a1 * t + ... a5 * t^5
+  VectorXd coeffs(6);
+
+  double a0 = s0;
+  double a1 = s0_dot;
+  double a2 = s0_ddot / 2.0;
+
+  double T = T_terminal;
+
+  Matrix3d c345;
+  c345 << pow(T, 3.), pow(T, 4.), pow(T, 5.),
+          3*pow(T, 2.), 4*pow(T, 3.), 5*pow(T,4.),
+          6*T, 12*pow(T, 2.), 20*pow(T, 3.);
+
+  Vector3d q345;
+  q345 << st - (a0 + a1 * T + a2 * pow(T, 2.)),
+          st_dot - (a1 + 2 * a2 * T),
+          st_ddot - 2 * a2;
+
+  Vector3d a345;
+  a345 = c345.inverse() * q345;
+
+  coeffs << a0, a1, a2, a345(0), a345(1), a345(2);
+
+  return coeffs;
+}
+
 int main() {
+
+  VectorXd test_ = getPolynomialCoeffs(1, 0.1, 0.7, 20, 5, 0, 5);
+  cout << test_ << endl;
+
+
   uWS::Hub h;
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
@@ -242,7 +282,6 @@ int main() {
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
-
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
             int prev_path_size = previous_path_x.size();
@@ -250,7 +289,8 @@ int main() {
 
 
             // sensor Fusion
-            bool too_close = false;
+            bool FOLLOWING = false;
+            bool VELOCITY_KEEPING = true;
             double safe_distance = 50.0;
 
             for (int i=0; i<sensor_fusion.size(); i++) {
@@ -264,16 +304,19 @@ int main() {
 
                 s_other += (double)prev_path_size*0.02*speed_other;
 
-                bool is_car_close_front_of_me = (s_other > car_s) && (s_other - car_s < safe_distance);
+                bool is_car_close_front_of_me = (s_other > car_s) \
+                              && (s_other - car_s < safe_distance + 15.0);
 
                 if (is_car_close_front_of_me) {
-                  too_close = true;
+                  FOLLOWING = true;
+                  VELOCITY_KEEPING = false;
                 }
 
               }
             }
-            if (too_close) {
+            if (FOLLOWING) {
               target_speed -= 0.224;
+
             }
             else if (target_speed < 48) {
               target_speed += 0.224;
