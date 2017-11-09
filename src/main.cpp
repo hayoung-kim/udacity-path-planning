@@ -246,7 +246,7 @@ MatrixXd &Trajectories, VectorXd &Costs) {
       double acc2 = abs(6 * c345(0) + 24 * c345(1) * maxp + 60 * c345(2) * maxp*maxp);
       bool ACCELERATION_OUTSIZED = (acc0 >= acc_thres) || (acc1 >= acc_thres) || (acc2 >= acc_thres);
 
-      cout << "acceleration: " <<  max(acc0, acc1) << "\n outsized?" << ACCELERATION_OUTSIZED << endl;
+      // cout << "acceleration: " <<  max(acc0, acc1) << "\n outsized?" << ACCELERATION_OUTSIZED << endl;
 
       if (ACCELERATION_OUTSIZED == false){
 
@@ -340,7 +340,7 @@ MatrixXd &Trajectories, VectorXd &Costs) {
       double acc1 = abs(6 * c34(0) + 24* c34(1) * Tj);
       bool ACCELERATION_OUTSIZED = (acc0 >= acc_thres) || (acc1 >= acc_thres);
 
-      cout << "acceleration: " <<  max(acc0, acc1) << "\n outsized?" << ACCELERATION_OUTSIZED << endl;
+      // cout << "acceleration: " <<  max(acc0, acc1) << "\n outsized?" << ACCELERATION_OUTSIZED << endl;
 
       if (ACCELERATION_OUTSIZED == false){
 
@@ -375,10 +375,10 @@ MatrixXd &Trajectories, VectorXd &Costs) {
       }//ifend
     }//for j (Tj) end
   }
-  cout << "\nN_ACCELERATION_CONDITION_SATISFIED: " << N_ACCELERATION_CONDITION_SATISFIED << endl;
-
-  cout << "*************\ncoeffs:\n" << coeffs << endl;
-  cout << "*************\ncosts:\n" << costs << endl;
+  // cout << "\nN_ACCELERATION_CONDITION_SATISFIED: " << N_ACCELERATION_CONDITION_SATISFIED << endl;
+  //
+  // cout << "*************\ncoeffs:\n" << coeffs << endl;
+  // cout << "*************\ncosts:\n" << costs << endl;
 
   // resize trajectory coeffs and costs
   // Map<VectorXd, 0> trajectory_costs(costs.data(), N_ACCELERATION_CONDITION_SATISFIED);
@@ -395,6 +395,75 @@ MatrixXd &Trajectories, VectorXd &Costs) {
   // Trajectories.col()
 
   return 0;
+}
+
+int contains(double n, vector<double> range) {
+  float a = range[0], b = range[1];
+  if (b<a) {a=b; b=range[0];}
+  return (n >= a && n <= b);
+}
+
+int overlap(vector<double> a, vector<double> b) {
+  if (contains(a[0], b)) return 1;
+  if (contains(a[1], b)) return 1;
+  if (contains(b[0], a)) return 1;
+  if (contains(b[1], a)) return 1;
+  return 0;
+}
+
+int checkCollision(double s0, double d0, double theta0, double s1, double d1, double theta1) {
+  /* IMPLEMENT SEPERATION OF AXIS THEOREM for collision detection */
+  // set safety distance (to vehicle heading)
+  double safety_dist_lon = 4/2.0;
+  double safety_dist_lat = 2/2.0;
+
+  // vehicle wrapper
+  MatrixXd rec_wrapper(2,4);
+  rec_wrapper << safety_dist_lon, safety_dist_lon, -safety_dist_lon, -safety_dist_lon,
+                -safety_dist_lat, safety_dist_lat, safety_dist_lat, -safety_dist_lat;
+  // rotate wrapper by heading
+  Matrix2d rot0, rot1;
+  rot0 << cos(theta0), -sin(theta0), sin(theta0), cos(theta0);
+  rot1 << cos(theta1), -sin(theta1), sin(theta1), cos(theta1);
+
+  MatrixXd rec0(2,4);
+  MatrixXd rec1(2,4);
+  Vector2d trans0, trans1;
+  trans0 << s0, d0;
+  trans1 << s1, d1;
+
+  for (int i=0; i<rec_wrapper.cols(); i++){
+    rec0.col(i) = rot0 * rec_wrapper.col(i) + trans0;
+    rec1.col(i) = rot1 * rec_wrapper.col(i) + trans1;
+  }
+
+  // set principal axis list: normal + normal perpendicular
+  MatrixXd axis(2,4);
+  axis << cos(theta0), sin(theta0), cos(theta1), sin(theta1),
+          sin(theta0), -cos(theta0), sin(theta1), -cos(theta1);
+
+  for (int i=0; i<axis.cols(); i++) {
+    Vector2d principal_axis = axis.col(i);
+    // projection of rec0: get min, max
+    double min0 = principal_axis.dot(rec0.col(0));
+    double max0 = min0;
+    for (int j=0; j<rec0.cols(); j++){
+      double proj0 = principal_axis.dot(rec0.col(j));
+      if (proj0 > max0) max0 = proj0;
+      if (proj0 < min0) min0 = proj0;
+    }
+    // projection of rec1: get min, max
+    double min1 = principal_axis.dot(rec1.col(0));
+    double max1 = min1;
+    for (int j=0; j<rec1.cols(); j++){
+      double proj1 = principal_axis.dot(rec1.col(j));
+      if (proj1 > max1) max1 = proj1;
+      if (proj1 < min1) min1 = proj1;
+    }
+    // check overlap
+    if (!overlap({min0, max0}, {min1, max1})) return 0;
+  }
+  return 1;
 }
 
 
@@ -419,6 +488,10 @@ int main() {
   int asdf = solvePolynomialsFullTerminalCond(0, 0, 0, 3, 3, 0, Tjset, ds1set, Trajectoies, Costs);
   cout << "\n ~~~~~~~~~~~~~~ \n Trajectoies: \n" <<  Trajectoies << endl;
   cout << "\n ~~~~~~~~~~~~~~ \n Costs: \n" <<  Costs << endl;
+
+  int aasdf = checkCollision(0, 0, 30.0/180*3.141592, 0, 5, 0);
+  // int aasdf = checkCollision(0, 0, 0, 0, 0, 0);
+  cout << "\n ~~~~~~~~~~~~~~ \n Collision?: \n" <<  aasdf << endl;
 
   uWS::Hub h;
 
