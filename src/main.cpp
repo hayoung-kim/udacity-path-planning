@@ -467,31 +467,61 @@ int checkCollision(double s0, double d0, double theta0, double s1, double d1, do
 }
 
 
-int VelocityKeepingTrajectories() {
-  vector<double> target_speed_sets = {22.5, 20, 18.5};
-  cout << target_speed_sets[1] << endl;
+int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
+  double s1dot, MatrixXd &s_trajectories, VectorXd &s_costs) {
 
+    vector<double> ds1dotset;
+    vector<double> Tjset = {2.5,3.0,3.5,4.0};
+    int n_speed_sets = 5;
+    double range = 2.0;
 
+    for (int i=0; i<n_speed_sets; i++){
+      double ds1dot = -range + i * (range/n_speed_sets);
+      if (s1dot + ds1dot <= 22.5) ds1dotset.push_back(ds1dot);
+      else if (s1dot + ds1dot >= 1) ds1dotset.push_back(ds1dot);
+    }
 
-  return 0;
+    int _ = solvePolynomialsTwoTerminalCond(s0, s0dot, s0ddot, s1dot, 0, \
+                                            Tjset, ds1dotset, s_trajectories, s_costs);
+
+    return 0;
+}
+
+int lateralTrajectories(double d0, double d0dot, double d0ddot, \
+  double d1, MatrixXd &d_trajectories, VectorXd &d_costs) {
+    vector<double> dd1set = {0};
+    vector<double> Tjset = {2.5, 3.0, 3.5, 4.0};
+    int _ = solvePolynomialsFullTerminalCond(d0, d0dot, d0ddot, d1, 0, 0, \
+                                             Tjset, dd1set, d_trajectories, d_costs);
+    return 0;
+  }
+
+vector<int> optimalCombination(VectorXd s_costs, VectorXd d_costs) {
+  if ((s_costs.size() == 0) || (d_costs.size() == 0)) return {0, 0};
+  // cost weight for longitudinal / lateral
+  double klon = 1.0;
+  double klat = 2.0;
+  // build sum matrix
+  MatrixXd sd_sum(s_costs.size(), d_costs.size());
+  for (int row=0; row<s_costs.size(); row++){
+    for (int col=0; col<d_costs.size(); col++){
+      sd_sum(row,col) = klon * s_costs(row) + klat * d_costs(col);
+    }
+  }
+  // find minimum
+  int min_s_idx, min_d_idx;
+  double minCost = sd_sum.minCoeff(&min_s_idx, &min_d_idx);
+  return {min_s_idx, min_d_idx};
 }
 
 int main() {
-
-  // VectorXd test_ = getPolynomialCoeffs(1, 0.1, 0.7, 20, 5, 0, 5);
-  // cout << test_ << endl;
-  vector<double> Tjset = {1,2,3};
-  vector<double> ds1set = {0, 1, 2, 3};
-  MatrixXd Trajectoies(6,0);
-  VectorXd Costs(0);
-  // double i_ = solvePolynomialsTwoTerminalCond(0, 0, 0, 2, 0, Tjset, ds1set, Trajectoies, Costs);
-  int asdf = solvePolynomialsFullTerminalCond(0, 0, 0, 3, 3, 0, Tjset, ds1set, Trajectoies, Costs);
-  cout << "\n ~~~~~~~~~~~~~~ \n Trajectoies: \n" <<  Trajectoies << endl;
-  cout << "\n ~~~~~~~~~~~~~~ \n Costs: \n" <<  Costs << endl;
-
-  int aasdf = checkCollision(0, 0, 30.0/180*3.141592, 0, 5, 0);
-  // int aasdf = checkCollision(0, 0, 0, 0, 0, 0);
-  cout << "\n ~~~~~~~~~~~~~~ \n Collision?: \n" <<  aasdf << endl;
+  // test optimal combination
+  VectorXd sc(10);
+  VectorXd dc(5);
+  sc << 4,7,5,1,2,5,7,98,3,42;
+  dc << 5,4,1,2,3;
+  vector<int> min_idx = optimalCombination(sc, dc);
+  cout << "min idx: " << min_idx[0] << ", " << min_idx[1] << endl;
 
   uWS::Hub h;
 
@@ -531,8 +561,14 @@ int main() {
 
   double target_speed = 1.0; // m/s
   double lane = 1.0;
+  VectorXd optimal_s_coeff(6);
+  VectorXd optimal_d_coeff(6);
+  double s_cost = 999;
+  double d_cost = 999;
+  int step = 0;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &target_speed, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx\
+    ,&map_waypoints_dy, &target_speed, &lane, &optimal_s_coeff, &step](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -577,6 +613,23 @@ int main() {
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
             int prev_path_size = previous_path_x.size();
+            step += 1;
+            cout << "step: " << step << endl;
+            // cout << "optimal_s_coeff: \n" << optimal_s_coeff << endl;
+            cout << "prev_path_size: " << prev_path_size << endl;
+            cout << "--------------------------" << endl;
+
+            MatrixXd s_trajectories(6,0);
+            VectorXd s_costs(0);
+            MatrixXd d_trajectories(6,0);
+            VectorXd d_costs(0);
+
+            int _;
+            if (prev_path_size == 0) {
+              double target_s1dot = 2.0;
+              _ = VelocityKeepingTrajectories(car_s, 0, 0, target_s1dot, s_trajectories, s_costs);
+              _ = lateralTrajectories(car_d, 0, 0, car_d, d_trajectories, d_costs);
+            }
 
 
 
