@@ -195,11 +195,230 @@ VectorXd getPolynomialCoeffs(\
   return coeffs;
 }
 
+int solvePolynomialsFullTerminalCond(double s0, double s0dot, double s0ddot, \
+double s1, double s1dot, double s1ddot, vector<double> Tjset, vector<double> ds1set, \
+MatrixXd &Trajectories, VectorXd &Costs) {
+  Matrix3d M1;
+  M1 << 1, 0, 0,
+        0, 1, 0,
+        0, 0, 2;
+
+  Vector3d zeta0(s0, s0dot, s0ddot);
+  Vector3d c012;
+  c012 = M1.inverse() * zeta0;
+
+  MatrixXd coeffs(6, ds1set.size() * Tjset.size());
+  VectorXd costs(ds1set.size() * Tjset.size());
+
+  double kj = 1.0; // weight for jerk
+  double kt = 0; // weight for time
+  double ks = 0; // weight for terminal state
+
+  double acc_thres = 6.0; // acceleration threshold < 6m/s^2
+
+  int N_ACCELERATION_CONDITION_SATISFIED = 0;
+
+  for (int i=0; i<ds1set.size(); i++) {
+    for (int j=0; j<Tjset.size(); j++) {
+      // set [s1+ds1_i, s1dot, s1ddot, Tj]
+      double ds1 = ds1set[i];
+      double Tj = Tjset[j];
+      double s1_target = s1 + ds1;
+
+      // solve c3, c4, c5
+      Matrix3d M1_T;
+      Matrix3d M2_T;
+
+      M1_T << 1, Tj, Tj*Tj,
+                0, 1, 2* Tj,
+                0, 0, 2;
+      M2_T << Tj*Tj*Tj, Tj*Tj*Tj*Tj, Tj*Tj*Tj*Tj*Tj,
+                3*Tj*Tj, 4*Tj*Tj*Tj, 5*Tj*Tj*Tj*Tj,
+                6*Tj, 12*Tj*Tj, 20*Tj*Tj*Tj;
+      Vector3d zeta1(s1_target, s1dot, s1ddot);
+      Vector3d c345;
+      c345 = M2_T.inverse() * (zeta1 - M1_T * c012);
+
+      // calculate accleration outsized
+      double acc0 = abs(6 * c345(0));
+      double acc1 = abs(6 * c345(0) + 24* c345(1) * Tj + 60 * c345(2) * Tj *Tj);
+      double maxp = - c345(1) / (5.0 * c345(2));
+      double acc2 = abs(6 * c345(0) + 24 * c345(1) * maxp + 60 * c345(2) * maxp*maxp);
+      bool ACCELERATION_OUTSIZED = (acc0 >= acc_thres) || (acc1 >= acc_thres) || (acc2 >= acc_thres);
+
+      cout << "acceleration: " <<  max(acc0, acc1) << "\n outsized?" << ACCELERATION_OUTSIZED << endl;
+
+      if (ACCELERATION_OUTSIZED == false){
+
+        // calculate cost
+        double cost_Jerk = 36 * c345(0) * c345(0) * Tj \
+                          + 144 * c345(0) * c345(1) * Tj * Tj \
+                          + (192 * c345(1) * c345(1) + 240 * c345(0) *c345(2)) * Tj * Tj * Tj \
+                          + 720 * c345(1) * c345(2) * Tj*Tj*Tj*Tj \
+                          + 720 * c345(2) * c345(2) * Tj*Tj*Tj*Tj*Tj;
+        double cost_terminal = ds1 * ds1;
+        double cost_Total = kj * cost_Jerk + kt * Tj + ks * cost_terminal;
+
+        // cout << "c34: " << endl;
+        // cout << c34 << "\n" << endl;
+        //
+        // cout << "cost_Jerk:  " << endl;
+        // cout << cost_Jerk << "\n" << endl;
+        //
+        // cout << "cost: " << cost_Total <<  "\n" << endl;
+
+        // append coeffs and cost to trajectory sets
+        VectorXd c012345(6);
+        c012345 << c012(0), c012(1), c012(2), c345(0), c345(1), c345(2);
+        coeffs.col(N_ACCELERATION_CONDITION_SATISFIED) = c012345;
+        costs(N_ACCELERATION_CONDITION_SATISFIED) = cost_Total;
+
+        Trajectories.conservativeResize(6, Trajectories.cols()+1);
+        Trajectories.col(Trajectories.cols()-1) = c012345;
+        Costs.conservativeResize(Costs.size()+1);
+        Costs(Costs.size()-1) = cost_Total;
+
+
+        N_ACCELERATION_CONDITION_SATISFIED += 1;
+      }
+
+    }
+  }
+
+  return 0;
+
+
+}
+
+int solvePolynomialsTwoTerminalCond(double s0, double s0dot, double s0ddot, \
+double s1dot, double s1ddot, vector<double> Tjset, vector<double> ds1dotset, \
+MatrixXd &Trajectories, VectorXd &Costs) {
+  cout << "ds1set size: " << ds1dotset.size() << endl;
+  cout << "Tjset size: " << Tjset.size() << "\n" << endl;
+
+  Matrix3d M1;
+  M1 << 1, 0, 0,
+        0, 1, 0,
+        0, 0, 2;
+
+  Vector3d zeta0(s0, s0dot, s0ddot);
+  Vector3d c012;
+  c012 = M1.inverse() * zeta0;
+  Vector2d c12(c012(1), c012(2));
+
+  MatrixXd coeffs(6, ds1dotset.size() * Tjset.size());
+  VectorXd costs(ds1dotset.size() * Tjset.size());
+  double kj = 1.0; // weight for jerk
+  double kt = 0; // weight for time
+  double ksdot = 0; // weight for terminal state
+
+  double acc_thres = 6.0; // acceleration threshold < 6m/s^2
+
+  int N_ACCELERATION_CONDITION_SATISFIED = 0;
+
+  for (int i=0; i<ds1dotset.size(); i++) {
+    for (int j=0; j<Tjset.size(); j++) {
+      // set target state and terminal time
+      double ds1dot = ds1dotset[i];
+      double Tj = Tjset[j];
+      double s1dot_target = s1dot + ds1dot;
+
+      // solve c3, c4 (c5 = 0 by transversality condition)
+      Vector2d zeta1(s1dot_target, s1ddot);
+      Matrix2d M2;
+      Matrix2d C2;
+      M2 << 3 * Tj*Tj, 4 * Tj*Tj*Tj,
+            6 * Tj, 12 * Tj*Tj;
+      C2 << 1, 2*Tj,
+            0, 2;
+
+      Vector2d c34;
+      c34 = M2.inverse() * (zeta1 - C2*c12);
+
+      // check acceleration outsized
+      double acc0 = abs(6 * c34(0));
+      double acc1 = abs(6 * c34(0) + 24* c34(1) * Tj);
+      bool ACCELERATION_OUTSIZED = (acc0 >= acc_thres) || (acc1 >= acc_thres);
+
+      cout << "acceleration: " <<  max(acc0, acc1) << "\n outsized?" << ACCELERATION_OUTSIZED << endl;
+
+      if (ACCELERATION_OUTSIZED == false){
+
+        // calculate cost
+        double cost_Jerk = 36 * c34(0) * c34(0) * Tj \
+                          + 144 * c34(0) * c34(1) * Tj * Tj \
+                          + 192 * c34(1) * c34(1) * Tj * Tj * Tj;
+        double cost_terminal = ds1dot * ds1dot;
+        double cost_Total = kj * cost_Jerk + kt * Tj + ksdot * cost_terminal;
+
+        // cout << "c34: " << endl;
+        // cout << c34 << "\n" << endl;
+        //
+        // cout << "cost_Jerk:  " << endl;
+        // cout << cost_Jerk << "\n" << endl;
+        //
+        // cout << "cost: " << cost_Total <<  "\n" << endl;
+
+        // append coeffs and cost to trajectory sets
+        VectorXd c012345(6);
+        c012345 << c012(0), c012(1), c012(2), c34(0), c34(1), 0;
+        coeffs.col(N_ACCELERATION_CONDITION_SATISFIED) = c012345;
+        costs(N_ACCELERATION_CONDITION_SATISFIED) = cost_Total;
+
+        Trajectories.conservativeResize(6, Trajectories.cols()+1);
+        Trajectories.col(Trajectories.cols()-1) = c012345;
+        Costs.conservativeResize(Costs.size()+1);
+        Costs(Costs.size()-1) = cost_Total;
+
+
+        N_ACCELERATION_CONDITION_SATISFIED += 1;
+      }//ifend
+    }//for j (Tj) end
+  }
+  cout << "\nN_ACCELERATION_CONDITION_SATISFIED: " << N_ACCELERATION_CONDITION_SATISFIED << endl;
+
+  cout << "*************\ncoeffs:\n" << coeffs << endl;
+  cout << "*************\ncosts:\n" << costs << endl;
+
+  // resize trajectory coeffs and costs
+  // Map<VectorXd, 0> trajectory_costs(costs.data(), N_ACCELERATION_CONDITION_SATISFIED);
+  // Map<MatrixXd, 0> trajectory_coeffs(coeffs.data(), coeffs.rows(), N_ACCELERATION_CONDITION_SATISFIED);
+  // cout << "trajectory_costs: \n" << trajectory_costs << endl;
+  // cout << "trajectory_coeffs: \n" << trajectory_coeffs << endl;
+
+
+
+  // // append to trajectories and costs
+  // MatrixXd newTrajectories(Trajectories.rows(), Trajectories.cols()+N_ACCELERATION_CONDITION_SATISFIED);
+  //
+  // Trajectories.conservativeResize(Trajectories.rows(), Trajectories.cols()+N_ACCELERATION_CONDITION_SATISFIED);
+  // Trajectories.col()
+
+  return 0;
+}
+
+
+int VelocityKeepingTrajectories() {
+  vector<double> target_speed_sets = {22.5, 20, 18.5};
+  cout << target_speed_sets[1] << endl;
+
+
+
+  return 0;
+}
+
 int main() {
 
-  VectorXd test_ = getPolynomialCoeffs(1, 0.1, 0.7, 20, 5, 0, 5);
-  cout << test_ << endl;
-
+  // VectorXd test_ = getPolynomialCoeffs(1, 0.1, 0.7, 20, 5, 0, 5);
+  // cout << test_ << endl;
+  vector<double> Tjset = {1,2,3};
+  vector<double> ds1set = {0, 1, 2, 3};
+  MatrixXd Trajectoies(6,0);
+  VectorXd Costs(0);
+  // double i_ = solvePolynomialsTwoTerminalCond(0, 0, 0, 2, 0, Tjset, ds1set, Trajectoies, Costs);
+  int asdf = solvePolynomialsFullTerminalCond(0, 0, 0, 3, 3, 0, Tjset, ds1set, Trajectoies, Costs);
+  cout << "\n ~~~~~~~~~~~~~~ \n Trajectoies: \n" <<  Trajectoies << endl;
+  cout << "\n ~~~~~~~~~~~~~~ \n Costs: \n" <<  Costs << endl;
 
   uWS::Hub h;
 
