@@ -532,10 +532,10 @@ double getAcceleration(VectorXd coeffs, double t) {
   return coeffs.dot(tt);
 }
 
-vector<double> setInitialCondition(VectorXd optimal_s_coeff, int n_horizon, int n_use_prev_path, int prev_path_size) {
+vector<double> setInitialCondition(VectorXd optimal_s_coeff, int n_horizon, int n_use_previous_path, int prev_path_size) {
   // set starting horizon in previous planning step
   int current_horizon = n_horizon - prev_path_size;
-  int start_planning_horizon = current_horizon + n_use_prev_path;
+  int start_planning_horizon = current_horizon + n_use_previous_path;
   double t0 = start_planning_horizon * 0.02;
 
   // set initial condition
@@ -644,17 +644,24 @@ int main() {
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
+
+
+
             int prev_path_size = previous_path_x.size();
             step += 1;
-            cout << "step: " << step << endl;
+            cout << "------------------------------------------------" << endl;
+            cout << " [-] step: " << step << endl;
             // cout << "optimal_s_coeff: \n" << optimal_s_coeff << endl;
-            cout << "prev_path_size: " << prev_path_size << endl;
-            cout << "--------------------------" << endl;
+            cout << " [-] prev_path_size: " << prev_path_size << endl;
 
+            cout << " [-] Car speed= " << car_speed << endl;
             MatrixXd s_trajectories(6,0);
             VectorXd s_costs(0);
             MatrixXd d_trajectories(6,0);
             VectorXd d_costs(0);
+
+            int n_planning_horizon = 150;
+            int n_use_previous_path = 5;
 
             int _;
             if (prev_path_size == 0) {
@@ -673,7 +680,7 @@ int main() {
               optimal_d_coeff = d_trajectories.col(opt_idx[1]);
               cout << " [-] Optimal Trajectory for s: \n" << optimal_s_coeff << endl;
               cout << " [-] Optimal Trajectory for d: \n" << optimal_d_coeff << endl;
-              for (int hrz=0; hrz<150; hrz++){
+              for (int hrz=0; hrz<n_planning_horizon; hrz++){
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
                 vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -682,11 +689,53 @@ int main() {
               }
             }
             else {
-              for (int bb=0; bb<prev_path_size; bb++){
-                double x = previous_path_x[bb];
-                double y = previous_path_y[bb];
-                next_x_vals.push_back(x);
-                next_y_vals.push_back(y);
+              // set initial s0, d0
+              vector<double> s_initial = \
+                setInitialCondition(optimal_s_coeff, n_planning_horizon, n_use_previous_path, prev_path_size);
+
+              double s0 = s_initial[0];
+              double s0dot = s_initial[1];
+              double s0ddot = s_initial[2];
+
+              vector<double> d_initial = \
+                setInitialCondition(optimal_d_coeff, n_planning_horizon, n_use_previous_path, prev_path_size);
+
+              double d0 = d_initial[0];
+              double d0dot = d_initial[1];
+              double d0ddot = d_initial[2];
+
+              cout << " [-] initial s0= " << s0 << ", s0dot= " \
+                   << s0dot << ", s0ddot=" << s0ddot << endl;
+              cout << " [-] initial d0= " << d0 << ", d0dot= " \
+                   << d0dot << ", d0ddot=" << d0ddot << endl;
+
+              cout << " [*] Generating VelocityKeepingTrajectories ..." << endl;
+              double target_s1dot = s0dot + 3.0;
+              if (target_s1dot >= 20) {target_s1dot = 20;}
+              _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
+              cout << " [*] Generating lateralTrajectories ..." << endl;
+              _ = lateralTrajectories(d0, d0dot, d0ddot, car_d, d_trajectories, d_costs);
+              // cout << " [-] Trajectories list for s: \n" << s_trajectories << endl;
+              // cout << " [-] Trajectories list for d: \n" << d_trajectories << endl;
+
+              cout << " [*] Calculating optimal coeffs for s and d ..." << endl;
+              vector<int> opt_idx = optimalCombination(s_costs, d_costs);
+              cout << " [-] index for optimal (s,d) combination: " << opt_idx[0] << ", " \
+                   << opt_idx[1] << endl;
+              optimal_s_coeff = s_trajectories.col(opt_idx[0]);
+              optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+              cout << " [*] Push back previous path for n_use_previous_path ..." << endl;
+              for (int hrz=0; hrz<n_use_previous_path; hrz++) {
+                next_x_vals.push_back(previous_path_x[hrz]);
+                next_y_vals.push_back(previous_path_y[hrz]);
+              }
+              cout << " [*] Push back newly planned s(t), d(t) ..." << endl;
+              for (int hrz=0; hrz<n_planning_horizon-n_use_previous_path; hrz++){
+                double s = getPosition(optimal_s_coeff, hrz*0.02);
+                double d = getPosition(optimal_d_coeff, hrz*0.02);
+                vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                next_x_vals.push_back(xy[0]);
+                next_y_vals.push_back(xy[1]);
               }
             }
 
