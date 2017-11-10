@@ -514,6 +514,38 @@ vector<int> optimalCombination(VectorXd s_costs, VectorXd d_costs) {
   return {min_s_idx, min_d_idx};
 }
 
+double getPosition(VectorXd coeffs, double t) {
+  VectorXd tt(6);
+  tt << 1, t, t*t, t*t*t, t*t*t*t, t*t*t*t*t;
+  return coeffs.dot(tt);
+}
+
+double getVelocity(VectorXd coeffs, double t) {
+  VectorXd tt(6);
+  tt << 0, 1, 2*t, 3*t*t, 4*t*t*t, 5*t*t*t*t;
+  return coeffs.dot(tt);
+}
+
+double getAcceleration(VectorXd coeffs, double t) {
+  VectorXd tt(6);
+  tt << 0, 0, 2, 3*2*t, 4*3*t*t, 5*4*t*t*t;
+  return coeffs.dot(tt);
+}
+
+vector<double> setInitialCondition(VectorXd optimal_s_coeff, int n_horizon, int n_use_prev_path, int prev_path_size) {
+  // set starting horizon in previous planning step
+  int current_horizon = n_horizon - prev_path_size;
+  int start_planning_horizon = current_horizon + n_use_prev_path;
+  double t0 = start_planning_horizon * 0.02;
+
+  // set initial condition
+  double s0 = getPosition(optimal_s_coeff, t0);
+  double s0dot = getVelocity(optimal_s_coeff, t0);
+  double s0ddot = getAcceleration(optimal_s_coeff, t0);
+
+  return {s0, s0dot, s0ddot};
+}
+
 int main() {
   // test optimal combination
   VectorXd sc(10);
@@ -568,7 +600,7 @@ int main() {
   int step = 0;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx\
-    ,&map_waypoints_dy, &target_speed, &lane, &optimal_s_coeff, &step](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+    ,&map_waypoints_dy, &target_speed, &lane, &optimal_s_coeff, &optimal_d_coeff, &step](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -626,137 +658,36 @@ int main() {
 
             int _;
             if (prev_path_size == 0) {
-              double target_s1dot = 2.0;
+              double target_s1dot = 3.0;
+              cout << " [*] Generating VelocityKeepingTrajectories ..." << endl;
               _ = VelocityKeepingTrajectories(car_s, 0, 0, target_s1dot, s_trajectories, s_costs);
+              cout << " [*] Generating lateralTrajectories ..." << endl;
               _ = lateralTrajectories(car_d, 0, 0, car_d, d_trajectories, d_costs);
-            }
-
-
-
-            // sensor Fusion
-            bool FOLLOWING = false;
-            bool VELOCITY_KEEPING = true;
-            double safe_distance = 50.0;
-
-            for (int i=0; i<sensor_fusion.size(); i++) {
-              float d = sensor_fusion[i][6];
-              bool is_car_in_my_lane = ((d < 2+4*lane+2) && (d >2+4*lane-2));
-              if (is_car_in_my_lane) {
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double speed_other = sqrt(vx*vx + vy*vy);
-                double s_other = sensor_fusion[i][5];
-
-                s_other += (double)prev_path_size*0.02*speed_other;
-
-                bool is_car_close_front_of_me = (s_other > car_s) \
-                              && (s_other - car_s < safe_distance + 15.0);
-
-                if (is_car_close_front_of_me) {
-                  FOLLOWING = true;
-                  VELOCITY_KEEPING = false;
-                }
-
+              vector<int> opt_idx = optimalCombination(s_costs, d_costs);
+              // cout << " [-] index for optimal (s,d) combination: " << opt_idx[0] << ", " \
+                   << opt_idx[1] << endl;
+              // cout << " [-] Trajectories list for s: \n" << s_trajectories << endl;
+              // cout << " [-] Trajectories list for d: \n" << d_trajectories << endl;
+              cout << " [*] Calculating optimal coeffs for s and d ..." << endl;
+              optimal_s_coeff = s_trajectories.col(opt_idx[0]);
+              optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+              cout << " [-] Optimal Trajectory for s: \n" << optimal_s_coeff << endl;
+              cout << " [-] Optimal Trajectory for d: \n" << optimal_d_coeff << endl;
+              for (int hrz=0; hrz<150; hrz++){
+                double s = getPosition(optimal_s_coeff, hrz*0.02);
+                double d = getPosition(optimal_d_coeff, hrz*0.02);
+                vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                next_x_vals.push_back(xy[0]);
+                next_y_vals.push_back(xy[1]);
               }
             }
-            if (FOLLOWING) {
-              target_speed -= 0.224;
-
-            }
-            else if (target_speed < 48) {
-              target_speed += 0.224;
-            }
-
-            // path planning
-            double pos_x;
-            double pos_y;
-            double pos_yaw;
-
-            vector<double> points_for_ref_x;
-            vector<double> points_for_ref_y;
-
-            // set previous path
-            for(int i=0; i<prev_path_size; i++) {
-              next_x_vals.push_back(previous_path_x[i]);
-              next_y_vals.push_back(previous_path_y[i]);
-            }
-
-            // get the remaining trajectory starting point
-            if(prev_path_size == 0) {
-              pos_x = car_x;
-              pos_y = car_y;
-              pos_yaw = deg2rad(car_yaw);
-              points_for_ref_x.push_back(pos_x);
-              points_for_ref_y.push_back(pos_y);
-            }
             else {
-              pos_x = previous_path_x[prev_path_size-1];
-              pos_y = previous_path_y[prev_path_size-1];
-
-              double pos_x_prev = previous_path_x[prev_path_size-2];
-              double pos_y_prev = previous_path_y[prev_path_size-2];
-              pos_yaw = atan2(pos_y-pos_y_prev, pos_x-pos_x_prev);
-
-              points_for_ref_x.push_back(pos_x_prev);
-              points_for_ref_x.push_back(pos_x);
-              points_for_ref_y.push_back(pos_y_prev);
-              points_for_ref_y.push_back(pos_y);
-            }
-
-            // get points for making reference trajectory
-            vector<double> next_waypoints_1 = getXY(car_s + 40, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_waypoints_2 = getXY(car_s + 80, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_waypoints_3 = getXY(car_s + 120, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
-            points_for_ref_x.push_back(next_waypoints_1[0]);
-            points_for_ref_x.push_back(next_waypoints_2[0]);
-            points_for_ref_x.push_back(next_waypoints_3[0]);
-
-            points_for_ref_y.push_back(next_waypoints_1[1]);
-            points_for_ref_y.push_back(next_waypoints_2[1]);
-            points_for_ref_y.push_back(next_waypoints_3[1]);
-
-            // TRANSFORM TO VEHICLE LOCAL COORDINATES
-            for(int i=0; i<points_for_ref_x.size(); i++) {
-              double x_local = points_for_ref_x[i] - pos_x;
-              double y_local = points_for_ref_y[i] - pos_y;
-              points_for_ref_x[i] = x_local * cos(0 - pos_yaw) - y_local * sin(0 - pos_yaw);
-              points_for_ref_y[i] = x_local * sin(0 - pos_yaw) + y_local * cos(0 - pos_yaw);
-            }
-
-            // fit spline
-            tk::spline s;
-            s.set_points(points_for_ref_x, points_for_ref_y);
-
-            // get trajectory points
-
-            double target_x = 30.0;
-            double target_y  = s(target_x);
-            double target_dist = sqrt(target_x*target_x + target_y*target_y);
-
-            double x_reference_prev = 0;
-
-            // cout << " ------------------------- " << endl;
-
-            for(int i=0; i<50-prev_path_size; i++) {
-              double N = target_dist/(0.02*target_speed/2.24); // MPH
-              double x_reference = x_reference_prev + target_x/N;
-              double y_reference = s(x_reference);
-
-              x_reference_prev = x_reference;
-              // cout << "(x,y):  " << x_reference << ", " <<  y_reference << endl;
-
-
-              // TRANSFORM TO GLOBAL COORDINATES
-              double x_reference_global;
-              double y_reference_global;
-              x_reference_global = x_reference * cos(pos_yaw) - y_reference * sin(pos_yaw);
-              y_reference_global = x_reference * sin(pos_yaw) + y_reference * cos(pos_yaw);
-              x_reference_global += pos_x;
-              y_reference_global += pos_y;
-
-              next_x_vals.push_back(x_reference_global);
-              next_y_vals.push_back(y_reference_global);
+              for (int bb=0; bb<prev_path_size; bb++){
+                double x = previous_path_x[bb];
+                double y = previous_path_y[bb];
+                next_x_vals.push_back(x);
+                next_y_vals.push_back(y);
+              }
             }
 
           	msgJson["next_x"] = next_x_vals;
