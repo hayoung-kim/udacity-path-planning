@@ -2,8 +2,8 @@
 Udacity self-driving car nanodegree term3 path planning project
 
 # references
-[Separating Axis Theorem](http://www.dyn4j.org/2010/01/sat/)
-[Optimal Trajectory Generation for Dynamic Street Scenarios in a Frenet Frame, ICRA 2010](https://d17h27t6h515a5.cloudfront.net/topher/2017/July/595fd482_werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame/werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame.pdf)
+- Separating Axis Theorem [`link`](http://www.dyn4j.org/2010/01/sat/)
+- "Optimal Trajectory Generation for Dynamic Street Scenarios in a Frenet Frame", ICRA 2010 [`link`](https://d17h27t6h515a5.cloudfront.net/topher/2017/July/595fd482_werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame/werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame.pdf)
 
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
