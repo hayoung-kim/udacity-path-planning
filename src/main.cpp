@@ -65,6 +65,41 @@ int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vect
 
 }
 
+vector<VectorXd> InterpolateWayPoints(double x, double y, const vector<double> maps_x, const vector<double> maps_y, const vector<double> maps_s) {
+  int closestWaypoint = ClosestWaypoint(x, y, maps_x, maps_y);
+  int endWaypoint = maps_x.size();
+  int n_interpolate = 6;
+  // get n waypoints to interpolate x=x(s), y=y(s)
+  int interpolateStartPoint = closestWaypoint - n_interpolate/2 + 1;
+  if (interpolateStartPoint < 0) {interpolateStartPoint = 0;}
+  if (interpolateStartPoint + n_interpolate > endWaypoint ) {interpolateStartPoint = endWaypoint - n_interpolate;}
+
+  VectorXd xs(n_interpolate);
+  VectorXd ys(n_interpolate);
+  VectorXd ss(n_interpolate);
+  for (int i=0; i<n_interpolate; i++) {
+    int ii = interpolateStartPoint + i;
+    xs(i) = maps_x[ii];
+    ys(i) = maps_y[ii];
+    ss(i) = maps_s[ii];
+  }
+  // construct Ax=b
+  MatrixXd A(n_interpolate, 4);
+  for (int i=0; i<n_interpolate; i++) {
+    RowVectorXd sc(4);
+    sc << 1, ss(i), ss(i)*ss(i), ss(i)*ss(i)*ss(i);
+    A.row(i) = sc;
+  }
+  // solve least square
+  VectorXd x_coeffs(4);
+  VectorXd y_coeffs(4);
+  x_coeffs = A.colPivHouseholderQr().solve(xs);
+  y_coeffs = A.colPivHouseholderQr().solve(ys);
+
+  return {x_coeffs, y_coeffs};
+
+}
+
 int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
 {
 
@@ -293,8 +328,8 @@ MatrixXd &Trajectories, VectorXd &Costs) {
 int solvePolynomialsTwoTerminalCond(double s0, double s0dot, double s0ddot, \
 double s1dot, double s1ddot, vector<double> Tjset, vector<double> ds1dotset, \
 MatrixXd &Trajectories, VectorXd &Costs) {
-  cout << "ds1set size: " << ds1dotset.size() << endl;
-  cout << "Tjset size: " << Tjset.size() << "\n" << endl;
+  // cout << "ds1set size: " << ds1dotset.size() << endl;
+  // cout << "Tjset size: " << Tjset.size() << "\n" << endl;
 
   Matrix3d M1;
   M1 << 1, 0, 0,
@@ -547,13 +582,6 @@ vector<double> setInitialCondition(VectorXd optimal_s_coeff, int n_horizon, int 
 }
 
 int main() {
-  // test optimal combination
-  VectorXd sc(10);
-  VectorXd dc(5);
-  sc << 4,7,5,1,2,5,7,98,3,42;
-  dc << 5,4,1,2,3;
-  vector<int> min_idx = optimalCombination(sc, dc);
-  cout << "min idx: " << min_idx[0] << ", " << min_idx[1] << endl;
 
   uWS::Hub h;
 
@@ -591,8 +619,6 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  double target_speed = 1.0; // m/s
-  double lane = 1.0;
   VectorXd optimal_s_coeff(6);
   VectorXd optimal_d_coeff(6);
   double s_cost = 999;
@@ -600,7 +626,7 @@ int main() {
   int step = 0;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx\
-    ,&map_waypoints_dy, &target_speed, &lane, &optimal_s_coeff, &optimal_d_coeff, &step](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+    ,&map_waypoints_dy, &optimal_s_coeff, &optimal_d_coeff, &step](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -644,9 +670,6 @@ int main() {
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
-
-
-
             int prev_path_size = previous_path_x.size();
             step += 1;
             cout << "------------------------------------------------" << endl;
@@ -661,11 +684,12 @@ int main() {
             VectorXd d_costs(0);
 
             int n_planning_horizon = 150;
-            int n_use_previous_path = 5;
+            int n_use_previous_path = 50;
 
             int _;
             if (prev_path_size == 0) {
               double target_s1dot = 3.0;
+              cout << " [*] Planning starts !!!" << endl;
               cout << " [*] Generating VelocityKeepingTrajectories ..." << endl;
               _ = VelocityKeepingTrajectories(car_s, 0, 0, target_s1dot, s_trajectories, s_costs);
               cout << " [*] Generating lateralTrajectories ..." << endl;
@@ -678,8 +702,8 @@ int main() {
               cout << " [*] Calculating optimal coeffs for s and d ..." << endl;
               optimal_s_coeff = s_trajectories.col(opt_idx[0]);
               optimal_d_coeff = d_trajectories.col(opt_idx[1]);
-              cout << " [-] Optimal Trajectory for s: \n" << optimal_s_coeff << endl;
-              cout << " [-] Optimal Trajectory for d: \n" << optimal_d_coeff << endl;
+              // cout << " [-] Optimal Trajectory for s: \n" << optimal_s_coeff << endl;
+              // cout << " [-] Optimal Trajectory for d: \n" << optimal_d_coeff << endl;
               for (int hrz=0; hrz<n_planning_horizon; hrz++){
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
@@ -694,6 +718,8 @@ int main() {
                 setInitialCondition(optimal_s_coeff, n_planning_horizon, n_use_previous_path, prev_path_size);
 
               double s0 = s_initial[0];
+              // double s0 = car_d;
+
               double s0dot = s_initial[1];
               double s0ddot = s_initial[2];
 
@@ -704,6 +730,7 @@ int main() {
               double d0dot = d_initial[1];
               double d0ddot = d_initial[2];
 
+              cout << " [-] car_s= " << car_s << ", car_d= " << car_d << endl;
               cout << " [-] initial s0= " << s0 << ", s0dot= " \
                    << s0dot << ", s0ddot=" << s0ddot << endl;
               cout << " [-] initial d0= " << d0 << ", d0dot= " \
