@@ -65,7 +65,7 @@ int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vect
 
 }
 
-vector<VectorXd> InterpolateWayPoints(double x, double y, const vector<double> maps_x, const vector<double> maps_y, const vector<double> maps_s) {
+vector<VectorXd> InterpolateWayPoints(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y, const vector<double> &maps_s) {
   int closestWaypoint = ClosestWaypoint(x, y, maps_x, maps_y);
   int endWaypoint = maps_x.size();
   int n_interpolate = 6;
@@ -97,6 +97,27 @@ vector<VectorXd> InterpolateWayPoints(double x, double y, const vector<double> m
   y_coeffs = A.colPivHouseholderQr().solve(ys);
 
   return {x_coeffs, y_coeffs};
+
+}
+
+Vector2d getXYsmooth(vector<VectorXd> xy_coeffs, double s, double d) {
+  VectorXd x_coeffs = xy_coeffs[0];
+  VectorXd y_coeffs = xy_coeffs[1];
+
+  // get tangential angle of waypoints
+  double xsdot = x_coeffs[1] + 2 * x_coeffs[2] * s + 3 * x_coeffs[3] * s * s;
+  double ysdot = y_coeffs[1] + 2 * y_coeffs[2] * s + 3 * y_coeffs[3] * s * s;
+  double theta = ysdot / xsdot; // divide by 0 problem may occurs? xsdot ~ 0 
+
+  // get normal vector at given s
+  Vector2d nr(sin(theta), -cos(theta));
+  double x = x_coeffs[0] + x_coeffs[1] * s + x_coeffs[2] * s * s + x_coeffs[3] * s * s * s;
+  double y = y_coeffs[0] + y_coeffs[1] * s + y_coeffs[2] * s * s + y_coeffs[3] * s * s * s;
+  Vector2d r(x, y);
+  Vector2d xy;
+  xy = r + d * nr;
+
+  return xy;
 
 }
 
