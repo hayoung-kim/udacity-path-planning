@@ -100,14 +100,14 @@ vector<VectorXd> InterpolateWayPoints(double x, double y, const vector<double> &
 
 }
 
-Vector2d getXYsmooth(vector<VectorXd> xy_coeffs, double s, double d) {
+vector<double> getXYsmooth(vector<VectorXd> xy_coeffs, double s, double d) {
   VectorXd x_coeffs = xy_coeffs[0];
   VectorXd y_coeffs = xy_coeffs[1];
 
   // get tangential angle of waypoints
   double xsdot = x_coeffs[1] + 2 * x_coeffs[2] * s + 3 * x_coeffs[3] * s * s;
   double ysdot = y_coeffs[1] + 2 * y_coeffs[2] * s + 3 * y_coeffs[3] * s * s;
-  double theta = ysdot / xsdot; // divide by 0 problem may occurs? xsdot ~ 0 
+  double theta = ysdot / xsdot; // divide by 0 problem may occurs? xsdot ~ 0
 
   // get normal vector at given s
   Vector2d nr(sin(theta), -cos(theta));
@@ -117,7 +117,7 @@ Vector2d getXYsmooth(vector<VectorXd> xy_coeffs, double s, double d) {
   Vector2d xy;
   xy = r + d * nr;
 
-  return xy;
+  return {xy(0), xy(1)};
 
 }
 
@@ -758,7 +758,7 @@ int main() {
                    << d0dot << ", d0ddot=" << d0ddot << endl;
 
               cout << " [*] Generating VelocityKeepingTrajectories ..." << endl;
-              double target_s1dot = s0dot + 3.0;
+              double target_s1dot = s0dot + 1.0;
               if (target_s1dot >= 20) {target_s1dot = 20;}
               _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
               cout << " [*] Generating lateralTrajectories ..." << endl;
@@ -777,11 +777,18 @@ int main() {
                 next_x_vals.push_back(previous_path_x[hrz]);
                 next_y_vals.push_back(previous_path_y[hrz]);
               }
+
+              cout << " [*] Interpolating map given car x, y ..." << endl;
+              vector<VectorXd> xy_coeffs = InterpolateWayPoints(car_x, car_y, \
+                map_waypoints_x, map_waypoints_y, map_waypoints_s);
+
               cout << " [*] Push back newly planned s(t), d(t) ..." << endl;
+
               for (int hrz=0; hrz<n_planning_horizon-n_use_previous_path; hrz++){
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
-                vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+                vector<double> xy = getXYsmooth(xy_coeffs, s, d);
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
               }
