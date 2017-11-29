@@ -227,7 +227,7 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
     vector<double> ds1dotset;
     vector<double> Tjset = {3.0,3.5,4.0,4.5};
     int n_speed_sets = 5;
-    double range = 2.0;
+    double range = 5.0;
 
     for (int i=0; i<n_speed_sets; i++){
       double ds1dot = -range + i * (range/n_speed_sets);
@@ -242,6 +242,38 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
     return 0;
 }
 
+
+int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, double s_lv0dot, MatrixXd &s_trajectories, VectorXd &s_costs) {
+  // tunning parameters : safety distance and CTG param
+  double dist_safe = 15.0;
+  double tau = 1.0; // constant time gap policy parameter
+
+  vector<double> Tjset = {3.0, 3.5, 4.0, 4.5};
+  vector<double> ds1set = {-5.0, -3.0, -1.0, 0, 1.0, 3.0};
+
+  double s1ddot = 0.0;
+
+  for (int i=0; i<Tjset.size(); i++) {
+    vector<double> _Tjset;
+    double Tj = Tjset[i];
+    _Tjset.push_back(Tj);
+
+    // calculate leading vehicle pos, vel, acc (CV Model in s-direction)
+    double s_lv1 = s_lv0 + s_lv0dot * Tj;
+    double s_lv1dot = s_lv0dot;
+    double s_lv1ddot = 0;
+
+    // calculate target pos, vel, acc
+    double s_target = s_lv1 - (dist_safe + tau * s_lv1dot);
+    double s_targetdot = s_lv1dot;
+    double s_targetddot = 0;
+
+    // solve polynomials with full condition
+    int _ = solvePolynomialsFullTerminalCond(s0, s0dot, s0ddot, \
+                                             s_target, s_targetdot, s_targetddot, \
+                                             _Tjset, ds1set, s_trajectories, s_costs);
+  }
+}
 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \
   double d1, MatrixXd &d_trajectories, VectorXd &d_costs) {

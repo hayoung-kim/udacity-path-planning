@@ -20,6 +20,8 @@ int solvePolynomialsTwoTerminalCond(double s0, double s0dot, double s0ddot, \
 int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
     double s1dot, MatrixXd &s_trajectories, VectorXd &s_costs);
 
+int FollowingTrajectories(double s0, double s0dot, double s0ddot, \
+    double s_lv0, double s_lv0dot, MatrixXd &s_trajectories, VectorXd &s_costs);
 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \
   double d1, MatrixXd &d_trajectories, VectorXd &d_costs);

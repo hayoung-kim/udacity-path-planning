@@ -29,6 +29,7 @@ typedef struct Vehicle {
   double vy;
   double s;
   double d;
+  double speed;
 } Vehicle;
 
 // Checks if the SocketIO event has JSON data.
@@ -151,11 +152,12 @@ int main() {
 
             cout << " [-] car_s: " << car_s << endl;
             cout << " [-] car_d: " << car_d << endl;
-            cout << " [-] speed: " << car_speed << endl;
+            cout << " [-] speed: " << car_speed << " (MPH)" << endl;
+            cout << " [-] speed: " << car_speed * 0.44704 << " (m/s)" << endl;
 
             // --------------------------------------------------
             // GET INFORMATION OF NEARBY VEHICLES
-            // -------------------------------------------------
+            // --------------------------------------------------
             vector<Vehicle> NearbyVehicles;
             for (int i=0; i<sensor_fusion.size(); i++) {
               // parsing the sensor fusion data
@@ -164,8 +166,8 @@ int main() {
               double s_dist = s_other - car_s;
               double d_other = sensor_fusion[i][6];
               // NEARBY VEHICLES
-              double detect_range_front = 80.0;
-              double detect_range_backward = 0.0;
+              double detect_range_front = 70.0;
+              double detect_range_backward = 30.0;
 
               if ((s_dist < detect_range_front) && (s_dist >= - detect_range_backward) && (d_other > 0)) {
                 Vehicle vehicle;
@@ -176,16 +178,65 @@ int main() {
                 vehicle.vy = sensor_fusion[i][4];
                 vehicle.s  = sensor_fusion[i][5];
                 vehicle.d  = sensor_fusion[i][6];
+                vehicle.speed = sqrt(vehicle.vx * vehicle.vx + vehicle.vy * vehicle.vy);
 
                 NearbyVehicles.push_back(vehicle);
               }
             }
 
 
-            cout << " [-] # NearbyVehicles = " << NearbyVehicles.size() << endl;
+            // cout << " [-] # NearbyVehicles = " << NearbyVehicles.size() << endl;
 
+            // ---------------------------------------
+            // EXTRACT NEAREST VEHICLE FOR EACH LANE
+            // ---------------------------------------
+            bool lane1_occupied = false;
+            bool lane2_occupied = false;
+            bool lane3_occupied = false;
+            Vehicle lane1_front_veh, lane2_front_veh, lane3_front_veh;
+            double lane1_front_dist = 999.0;
+            double lane2_front_dist = 999.0;
+            double lane3_front_dist = 999.0;
 
+            for (int i=0; i<NearbyVehicles.size(); i++) {
+              Vehicle _vehicle = NearbyVehicles[i];
+              if (_vehicle.s - car_s > 0) {
+                if ((_vehicle.d > 0) && (_vehicle.d <= 4)) {
+                  lane1_occupied = true;
+                  if (_vehicle.s - car_s < lane1_front_dist){
+                    lane1_front_veh = _vehicle;
+                    lane1_front_dist = _vehicle.s - car_s;
+                  }
+                }
+                else if ((_vehicle.d > 4) && (_vehicle.d <= 8)) {
+                  lane2_occupied = true;
+                  if (_vehicle.s - car_s < lane2_front_dist){
+                    lane2_front_veh = _vehicle;
+                    lane2_front_dist = _vehicle.s - car_s;
+                  }
+                }
+                else {
+                  lane3_occupied = true;
+                  if (_vehicle.s - car_s < lane3_front_dist){
+                    lane3_front_veh = _vehicle;
+                    lane3_front_dist = _vehicle.s - car_s;
+                  }
+                }
+              }
+            }
 
+            if (lane1_occupied) {cout << " [*] lane1 front: " << lane1_front_veh.s - car_s << " (m)" << endl;}
+            else {cout << " [*] lane1 front: - (m)" << endl;}
+            if (lane1_occupied) {cout << " [*] lane1 front: " << lane1_front_veh.speed << " (m/s)" << endl;}
+            else {cout << " [*] lane1 front: - (m/s)" << endl;}
+            if (lane2_occupied) {cout << " [*] lane2 front: " << lane2_front_veh.s - car_s << " (m)" << endl;}
+            else {cout << " [*] lane2 front: - (m)" << endl;}
+            if (lane2_occupied) {cout << " [*] lane2 front: " << lane2_front_veh.speed << " (m/s)" << endl;}
+            else {cout << " [*] lane2 front: - (m/s)" << endl;}
+            if (lane3_occupied) {cout << " [*] lane3 front: " << lane3_front_veh.s - car_s << " (m)" << endl;}
+            else {cout << " [*] lane3 front: - (m)" << endl;}
+            if (lane3_occupied) {cout << " [*] lane3 front: " << lane3_front_veh.speed << " (m/s)" << endl;}
+            else {cout << " [*] lane3 front: - (m/s)" << endl;}
 
             // cout << " [-] Car speed= " << car_speed << endl;
             MatrixXd s_trajectories(6, 0);
