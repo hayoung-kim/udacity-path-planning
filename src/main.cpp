@@ -21,6 +21,16 @@ using json = nlohmann::json;
 #include "polysolver.h"
 #include "coordinate_transforms.h"
 
+typedef struct Vehicle {
+  int id;
+  double x;
+  double y;
+  double vx;
+  double vy;
+  double s;
+  double d;
+} Vehicle;
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -143,6 +153,40 @@ int main() {
             cout << " [-] car_d: " << car_d << endl;
             cout << " [-] speed: " << car_speed << endl;
 
+            // --------------------------------------------------
+            // GET INFORMATION OF NEARBY VEHICLES
+            // -------------------------------------------------
+            vector<Vehicle> NearbyVehicles;
+            for (int i=0; i<sensor_fusion.size(); i++) {
+              // parsing the sensor fusion data
+              // id, x, y, vx, vy, s, d
+              double s_other = sensor_fusion[i][5];
+              double s_dist = s_other - car_s;
+              double d_other = sensor_fusion[i][6];
+              // NEARBY VEHICLES
+              double detect_range_front = 80.0;
+              double detect_range_backward = 0.0;
+
+              if ((s_dist < detect_range_front) && (s_dist >= - detect_range_backward) && (d_other > 0)) {
+                Vehicle vehicle;
+                vehicle.id = sensor_fusion[i][0];
+                vehicle.x  = sensor_fusion[i][1];
+                vehicle.y  = sensor_fusion[i][2];
+                vehicle.vx = sensor_fusion[i][3];
+                vehicle.vy = sensor_fusion[i][4];
+                vehicle.s  = sensor_fusion[i][5];
+                vehicle.d  = sensor_fusion[i][6];
+
+                NearbyVehicles.push_back(vehicle);
+              }
+            }
+
+
+            cout << " [-] # NearbyVehicles = " << NearbyVehicles.size() << endl;
+
+
+
+
             // cout << " [-] Car speed= " << car_speed << endl;
             MatrixXd s_trajectories(6, 0);
             VectorXd s_costs(0);
@@ -244,7 +288,9 @@ int main() {
               if (target_s1dot > 45 / 2.23694) {target_s1dot = 45 / 2.23694;}
 
               _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
-              _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
+              _ = lateralTrajectories(d0, d0dot, d0ddot, 2.0, d_trajectories, d_costs);
+              // _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
+              // _ = lateralTrajectories(d0, d0dot, d0ddot, 10.0, d_trajectories, d_costs);
 
               vector<int> opt_idx = optimalCombination(s_costs, d_costs);
               optimal_s_coeff = s_trajectories.col(opt_idx[0]);
