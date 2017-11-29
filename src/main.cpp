@@ -149,8 +149,8 @@ int main() {
             MatrixXd d_trajectories(6, 0);
             VectorXd d_costs(0);
 
-            int n_planning_horizon = 300;
-            int n_use_previous_path = 30;
+            int n_planning_horizon = 100;
+            int n_use_previous_path = 0;
 
             int _;
 
@@ -176,12 +176,12 @@ int main() {
             x_given_s.set_points(map_s_to_interp, map_x_to_interp);
             y_given_s.set_points(map_s_to_interp, map_y_to_interp);
 
-            cout << "interpolating starts...." << endl;
+            // cout << "interpolating starts...." << endl;
 
             vector<double> map_ss, map_xs, map_ys;
             double _s = map_s_to_interp[0];
-            cout << " [-] s_start = " << _s << endl;
-            cout << " [-] s_end = " << map_s_to_interp[map_s_to_interp.size()-1] << endl;
+            // cout << " [-] s_start = " << _s << endl;
+            // cout << " [-] s_end = " << map_s_to_interp[map_s_to_interp.size()-1] << endl;
 
             while (_s < map_s_to_interp[map_s_to_interp.size()-1]) {
               double _x = x_given_s(_s);
@@ -189,10 +189,10 @@ int main() {
               map_ss.push_back(_s);
               map_xs.push_back(_x);
               map_ys.push_back(_y);
-              _s += 0.5;
+              _s += 0.2;
             }
 
-
+            // TRAJECTORY PLANNING
 
             if (prev_path_size == 0) {
               double target_s1dot = 20 / 2.23694;
@@ -202,13 +202,9 @@ int main() {
               optimal_s_coeff = s_trajectories.col(opt_idx[0]);
               optimal_d_coeff = d_trajectories.col(opt_idx[1]);
 
-              // double vel = 20 / 2.23694;
-              // vector<double> ssd = getFrenet(car_x, car_y, deg2rad(car_yaw), map_waypoints_x, map_waypoints_y);
               for (int hrz=0; hrz<n_planning_horizon; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
-                // double s = ssd[0] + vel * 0.02 * hrz;
-                // double d = 6.0;
                 // vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
                 vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
                 next_x_vals.push_back(xy[0]);
@@ -216,104 +212,53 @@ int main() {
               }
             }
             else {
-              for (int hrz=0; hrz<prev_path_size; hrz++) {
-                next_x_vals.push_back(previous_path_x[hrz]);
-                next_y_vals.push_back(previous_path_y[hrz]);
+              // SEND SUBSET OF PREVIOUS PATH
+              int n_subset = n_use_previous_path;
+              if (n_subset >= prev_path_size) {n_subset = prev_path_size;}
+
+              cout << "n_subset: " << n_subset << endl;
+
+              for (int h=0; h<n_subset; h++){
+                next_x_vals.push_back(previous_path_x[h]);
+                next_y_vals.push_back(previous_path_y[h]);
+              }
+
+              // SET INITIAL s0, d0 and their derivatives
+              // prev_path_size : number of left over of previous planned trajectory
+              // n_use_previous_path : how many use previous path
+              // n_planning_horizon : n_use_previous_path + n_newly_planned_path
+
+              int n_pass = n_planning_horizon - prev_path_size;
+              int start_index = n_subset + n_pass - 1;
+              double start_time = start_index * 0.02;
+
+              double s0 = getPosition(optimal_s_coeff, start_time);
+              double s0dot = getVelocity(optimal_s_coeff, start_time);
+              double s0ddot = getAcceleration(optimal_s_coeff, start_time);
+              double d0 = getPosition(optimal_d_coeff, start_time);
+              double d0dot = getVelocity(optimal_d_coeff, start_time);
+              double d0ddot = getAcceleration(optimal_d_coeff, start_time);
+
+              // CALCULATE TRAJECTORY CANDIDATES AND COSTS OF THEOREM
+              double target_s1dot = (car_speed + 20) / 2.23694;
+              if (target_s1dot > 45 / 2.23694) {target_s1dot = 45 / 2.23694;}
+
+              _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
+              _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
+
+              vector<int> opt_idx = optimalCombination(s_costs, d_costs);
+              optimal_s_coeff = s_trajectories.col(opt_idx[0]);
+              optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+
+              for (int hrz=0; hrz<n_planning_horizon - n_subset + 1; hrz++) {
+                double s = getPosition(optimal_s_coeff, hrz*0.02);
+                double d = getPosition(optimal_d_coeff, hrz*0.02);
+                vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
+                next_x_vals.push_back(xy[0]);
+                next_y_vals.push_back(xy[1]);
               }
             }
 
-            //
-            // if (prev_path_size == 0) {
-            //   pos_x = car_x;
-            //   pos_y = car_y;
-            //   pos_yaw = deg2rad(car_yaw);
-            //
-            //   double target_s1dot = 3.0;
-            //   // cout << " [*] Planning starts !!!" << endl;
-            //   // cout << " [*] Generating VelocityKeepingTrajectories ..." << endl;
-            //   _ = VelocityKeepingTrajectories(car_s, 0, 0, target_s1dot, s_trajectories, s_costs);
-            //   // cout << " [*] Generating lateralTrajectories ..." << endl;
-            //   _ = lateralTrajectories(car_d, 0, 0, car_d, d_trajectories, d_costs);
-            //   vector<int> opt_idx = optimalCombination(s_costs, d_costs);
-            //   // cout << " [-] index for optimal (s,d) combination: " << opt_idx[0] << ", " \
-            //   //      << opt_idx[1] << endl;
-            //   // cout << " [-] Trajectories list for s: \n" << s_trajectories << endl;
-            //   // cout << " [-] Trajectories list for d: \n" << d_trajectories << endl;
-            //   // cout << " [*] Calculating optimal coeffs for s and d ..." << endl;
-            //   optimal_s_coeff = s_trajectories.col(opt_idx[0]);
-            //   optimal_d_coeff = d_trajectories.col(opt_idx[1]);
-            //   cout << " [-] Optimal Trajectory for s: \n" << optimal_s_coeff << endl;
-            //   cout << " [-] Optimal Trajectory for d: \n" << optimal_d_coeff << endl;
-            //   for (int hrz=0; hrz<n_planning_horizon; hrz++){
-            //     double s = getPosition(optimal_s_coeff, hrz*0.02);
-            //     double d = getPosition(optimal_d_coeff, hrz*0.02);
-            //     vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            //     next_x_vals.push_back(xy[0]);
-            //     next_y_vals.push_back(xy[1]);
-            //   }
-            // }
-            // else {
-            //
-            // }
-
-            // /* --------------------------------------------------------- */
-            // // INTERPOLATING TRAJECTORY: USING SPLINE
-            // /* --------------------------------------------------------- */
-            // // TRANSFORM TRAJECTORY TO VEHICLE LOCAL COORDINATES
-            // for(int i=0; i<next_x_vals.size(); i++) {
-            //   double x_local = next_x_vals[i] - pos_x;
-            //   double y_local = next_y_vals[i] - pos_y;
-            //   next_x_vals[i] = x_local * cos(0 - pos_yaw) - y_local * sin(0 - pos_yaw);
-            //   next_y_vals[i] = x_local * sin(0 - pos_yaw) + y_local * cos(0 - pos_yaw);
-            // }
-            //
-            // // GET speed
-            // double dx_total = next_x_vals[next_x_vals.size()] - next_x_vals[0];
-            // double dy_total = next_y_vals[next_x_vals.size()] - next_y_vals[0];
-            // double avg_speed = sqrt(dx_total*dx_total + dy_total*dy_total) \
-            //                     / (3.0);
-            // if (avg_speed < 1) {avg_speed = 1;}
-            //
-            // cout << " [*] AVG SPEED CALCULATED ! : " << avg_speed << endl;
-
-            // // fit spline
-            // // for (int i=0; i<next_x_vals.size(); i++) {
-            // //   cout << " [-] next_x_vals= " << next_x_vals[i] << endl;
-            // // }
-            //
-            // tk::spline s;
-            // s.set_points(next_x_vals, next_y_vals);
-            // cout << " [*] SPLINE FITTED !" << endl;
-            //
-            // // interpolated points
-            // vector<double> interpolated_x_vals;
-            // vector<double> interpolated_y_vals;
-            // double target_x = 30.0;
-            // double target_y = s(target_x);
-            // double target_dist = sqrt(target_x*target_x + target_y*target_y);
-            //
-            // double x_reference_prev = 0;
-            //
-            // cout << " [*] INTERPOLATING POINTS ..." << endl;
-            //
-            // for(int i=0; i<n_planning_horizon-prev_path_size; i++) {
-            //   double N = target_dist/(0.02*avg_speed); // MPH
-            //   double x_reference = x_reference_prev + target_x/N;
-            //   double y_reference = s(x_reference);
-            //   x_reference_prev = x_reference;
-            //
-            //   // TRANSFORM TO GLOBAL COORDINATES
-            //   double x_reference_global;
-            //   double y_reference_global;
-            //   x_reference_global = x_reference * cos(pos_yaw) - y_reference * sin(pos_yaw);
-            //   y_reference_global = x_reference * sin(pos_yaw) + y_reference * cos(pos_yaw);
-            //   x_reference_global += pos_x;
-            //   y_reference_global += pos_y;
-            //
-            //   interpolated_x_vals.push_back(x_reference_global);
-            //   interpolated_y_vals.push_back(y_reference_global);
-            // }
-            // cout << "next_x_vals.size(): " << next_x_vals.size() << endl;
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
             // msgJson["next_x"] = interpolated_x_vals;
