@@ -154,9 +154,47 @@ int main() {
 
             int _;
 
+            // WAYPOINTS SMOOTHING
+            int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
+            int id_interp_start = _close_way_point_id - 5;
+            int id_interp_end   = _close_way_point_id + 5;
+            int id_map_last = map_waypoints_x.size();
+
+            cout << "setting a range for interpolate ... " << endl;
+            if (id_interp_start < 0) {id_interp_start = 0;}
+            if (id_interp_end > id_map_last) {id_interp_end = id_map_last;}
+
+            vector<double> map_x_to_interp, map_y_to_interp, map_s_to_interp;
+            for (int map_id=id_interp_start; map_id < id_interp_end; map_id ++) {
+              map_x_to_interp.push_back(map_waypoints_x[map_id]);
+              map_y_to_interp.push_back(map_waypoints_y[map_id]);
+              map_s_to_interp.push_back(map_waypoints_s[map_id]);
+            }
+
+            tk::spline x_given_s;
+            tk::spline y_given_s;
+            x_given_s.set_points(map_s_to_interp, map_x_to_interp);
+            y_given_s.set_points(map_s_to_interp, map_y_to_interp);
+
+            cout << "interpolating starts...." << endl;
+
+            vector<double> map_ss, map_xs, map_ys;
+            double _s = map_s_to_interp[0];
+            cout << " [-] s_start = " << _s << endl;
+            cout << " [-] s_end = " << map_s_to_interp[map_s_to_interp.size()-1] << endl;
+
+            while (_s < map_s_to_interp[map_s_to_interp.size()-1]) {
+              double _x = x_given_s(_s);
+              double _y = y_given_s(_s);
+              map_ss.push_back(_s);
+              map_xs.push_back(_x);
+              map_ys.push_back(_y);
+              _s += 0.5;
+            }
+
+
 
             if (prev_path_size == 0) {
-
               double target_s1dot = 20 / 2.23694;
               _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, s_trajectories, s_costs);
               _ = lateralTrajectories(car_d, 0, 0, 6.0, d_trajectories, d_costs);
@@ -171,7 +209,8 @@ int main() {
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
                 // double s = ssd[0] + vel * 0.02 * hrz;
                 // double d = 6.0;
-                vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                // vector<double> xy = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+                vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
               }
