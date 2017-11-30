@@ -334,18 +334,35 @@ int main() {
               double d0dot = getVelocity(optimal_d_coeff, start_time);
               double d0ddot = getAcceleration(optimal_d_coeff, start_time);
 
-              // CALCULATE TRAJECTORY CANDIDATES AND COSTS OF THEOREM
+              // GENERATE TRAJECTORY CANDIDATES AND COSTS
               double target_s1dot = (car_speed + 20) / 2.23694;
               if (target_s1dot > 45 / 2.23694) {target_s1dot = 45 / 2.23694;}
 
               _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
+
+              if (lane1_occupied) {
+                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane1_front_veh.s, lane1_front_veh.speed, s_trajectories, s_costs);
+              }
+              if (lane2_occupied) {
+                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane2_front_veh.s, lane2_front_veh.speed, s_trajectories, s_costs);
+              }
+              if (lane3_occupied) {
+                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane3_front_veh.s, lane3_front_veh.speed, s_trajectories, s_costs);
+              }
+
               _ = lateralTrajectories(d0, d0dot, d0ddot, 2.0, d_trajectories, d_costs);
-              // _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
-              // _ = lateralTrajectories(d0, d0dot, d0ddot, 10.0, d_trajectories, d_costs);
+              _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
+              _ = lateralTrajectories(d0, d0dot, d0ddot, 10.0, d_trajectories, d_costs);
+
+              // SELECT PATH
+
+
 
               vector<int> opt_idx = optimalCombination(s_costs, d_costs);
               optimal_s_coeff = s_trajectories.col(opt_idx[0]);
               optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+
+              // RUN!!
 
               for (int hrz=0; hrz<n_planning_horizon - n_subset + 1; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
