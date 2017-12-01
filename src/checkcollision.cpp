@@ -1,4 +1,16 @@
 
+#include <math.h>
+#include <iostream>
+#include <vector>
+
+#include "Eigen-3.3/Eigen/Core"
+#include "Eigen-3.3/Eigen/QR"
+#include "Eigen-3.3/Eigen/Dense"
+
+using namespace std;
+using namespace Eigen;
+#include "checkcollision.h"
+
 int contains(double n, vector<double> range) {
   float a = range[0], b = range[1];
   if (b<a) {a=b; b=range[0];}

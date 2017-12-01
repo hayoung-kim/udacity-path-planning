@@ -20,6 +20,7 @@ using json = nlohmann::json;
 #include "spline.h"
 #include "polysolver.h"
 #include "coordinate_transforms.h"
+#include "checkcollision.h"
 
 typedef struct Vehicle {
   int id;
@@ -30,6 +31,7 @@ typedef struct Vehicle {
   double s;
   double d;
   double speed;
+  // vector<double> future_s;
 } Vehicle;
 
 // Checks if the SocketIO event has JSON data.
@@ -311,7 +313,7 @@ int main() {
               int n_subset = n_use_previous_path;
               if (n_subset >= prev_path_size) {n_subset = prev_path_size;}
 
-              cout << "n_subset: " << n_subset << endl;
+              // cout << "n_subset: " << n_subset << endl;
 
               for (int h=0; h<n_subset; h++){
                 next_x_vals.push_back(previous_path_x[h]);
@@ -354,13 +356,38 @@ int main() {
               _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
               _ = lateralTrajectories(d0, d0dot, d0ddot, 10.0, d_trajectories, d_costs);
 
-              // SELECT PATH
+
+              // OPTIMAL PATH SELECTION WITH COLLISION CHECK
+              int MAX_ITER_FIND_OPT = 40;
+              for (int i=0; i<MAX_ITER_FIND_OPT; i++) {
+                bool is_crash = false;
+                vector<int> opt_idx = optimalCombination(s_costs, d_costs);
+                optimal_s_coeff = s_trajectories.col(opt_idx[0]);
+                optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+
+                // check collision for hrz
+                for (int t=0; t< n_planning_horizon; t++) {
+                  // my position
+                  double _s = getPosition(optimal_s_coeff, i*0.02);
+                  double _d = getPosition(optimal_d_coeff, i*0.02);
+
+                  // other car's predicted position
+                  for (int n=0; n < NearbyVehicles.size(); n++) {
+                    Vehicle other_car = NearbyVehicles[n];
+                    double _s_other = other_car.s + t * 0.02 * other_car.speed;
+                    double _d_other = other_car.d;
+                    int crash = checkCollision(_s, _d, 0.0, _s_other, _d_other, 0.0);
+                    if (crash == 1) {is_crash = true; break;}
+                  }
+                  if (is_crash) {break;}
+                }
+                if (is_crash) {s_costs(opt_idx[0]) = 99999; d_costs(opt_idx[1])=99999;}
+              }
 
 
-
-              vector<int> opt_idx = optimalCombination(s_costs, d_costs);
-              optimal_s_coeff = s_trajectories.col(opt_idx[0]);
-              optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+              // vector<int> opt_idx = optimalCombination(s_costs, d_costs);
+              // optimal_s_coeff = s_trajectories.col(opt_idx[0]);
+              // optimal_d_coeff = d_trajectories.col(opt_idx[1]);
 
               // RUN!!
 
