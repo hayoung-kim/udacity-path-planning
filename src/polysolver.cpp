@@ -56,9 +56,9 @@ MatrixXd &Trajectories, VectorXd &Costs) {
   MatrixXd coeffs(6, ds1set.size() * Tjset.size());
   VectorXd costs(ds1set.size() * Tjset.size());
 
-  double kj = 1.0; // weight for jerk
-  double kt = 0; // weight for time
-  double ks = 0; // weight for terminal state
+  double kj = 0.1*3; // weight for jerk
+  double kt = 1.0*3; // weight for time
+  double ks = 3.0*3; // weight for terminal state
 
   double acc_thres = 6.0; // acceleration threshold < 6m/s^2
 
@@ -151,9 +151,9 @@ MatrixXd &Trajectories, VectorXd &Costs) {
 
   MatrixXd coeffs(6, ds1dotset.size() * Tjset.size());
   VectorXd costs(ds1dotset.size() * Tjset.size());
-  double kj = 1.0; // weight for jerk
-  double kt = 0; // weight for time
-  double ksdot = 0; // weight for terminal state
+  double kj = 0.1; // weight for jerk
+  double kt = 1.0; // weight for time
+  double ksdot = 3.0; // weight for terminal state
 
   double acc_thres = 6.0; // acceleration threshold < 6m/s^2
 
@@ -272,7 +272,9 @@ int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, 
     int _ = solvePolynomialsFullTerminalCond(s0, s0dot, s0ddot, \
                                              s_target, s_targetdot, s_targetddot, \
                                              _Tjset, ds1set, s_trajectories, s_costs);
+
   }
+  return 0;
 }
 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \

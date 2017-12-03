@@ -28,8 +28,8 @@ int overlap(vector<double> a, vector<double> b) {
 int checkCollision(double s0, double d0, double theta0, double s1, double d1, double theta1) {
   /* IMPLEMENT SEPERATION OF AXIS THEOREM for collision detection */
   // set safety distance (to vehicle heading)
-  double safety_dist_lon = 4/2.0;
-  double safety_dist_lat = 2/2.0;
+  double safety_dist_lon = 6;
+  double safety_dist_lat = 3.2/2.0;
 
   // vehicle wrapper
   MatrixXd rec_wrapper(2,4);

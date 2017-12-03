@@ -187,7 +187,7 @@ int main() {
             }
 
 
-            // cout << " [-] # NearbyVehicles = " << NearbyVehicles.size() << endl;
+            cout << " [-] # NearbyVehicles = " << NearbyVehicles.size() << endl;
 
             // ---------------------------------------
             // EXTRACT NEAREST VEHICLE FOR EACH LANE
@@ -240,6 +240,7 @@ int main() {
             if (lane3_occupied) {cout << " [*] lane3 front: " << lane3_front_veh.speed << " (m/s)" << endl;}
             else {cout << " [*] lane3 front: - (m/s)" << endl;}
 
+
             // cout << " [-] Car speed= " << car_speed << endl;
             MatrixXd s_trajectories(6, 0);
             VectorXd s_costs(0);
@@ -257,7 +258,7 @@ int main() {
             int id_interp_end   = _close_way_point_id + 5;
             int id_map_last = map_waypoints_x.size();
 
-            cout << "setting a range for interpolate ... " << endl;
+            // cout << "setting a range for interpolate ... " << endl;
             if (id_interp_start < 0) {id_interp_start = 0;}
             if (id_interp_end > id_map_last) {id_interp_end = id_map_last;}
 
@@ -309,24 +310,13 @@ int main() {
               }
             }
             else {
-              // SEND SUBSET OF PREVIOUS PATH
-              int n_subset = n_use_previous_path;
-              if (n_subset >= prev_path_size) {n_subset = prev_path_size;}
-
-              // cout << "n_subset: " << n_subset << endl;
-
-              for (int h=0; h<n_subset; h++){
-                next_x_vals.push_back(previous_path_x[h]);
-                next_y_vals.push_back(previous_path_y[h]);
-              }
-
               // SET INITIAL s0, d0 and their derivatives
               // prev_path_size : number of left over of previous planned trajectory
               // n_use_previous_path : how many use previous path
               // n_planning_horizon : n_use_previous_path + n_newly_planned_path
 
               int n_pass = n_planning_horizon - prev_path_size;
-              int start_index = n_subset + n_pass - 1;
+              int start_index = n_pass - 1;
               double start_time = start_index * 0.02;
 
               double s0 = getPosition(optimal_s_coeff, start_time);
@@ -337,19 +327,19 @@ int main() {
               double d0ddot = getAcceleration(optimal_d_coeff, start_time);
 
               // GENERATE TRAJECTORY CANDIDATES AND COSTS
-              double target_s1dot = (car_speed + 20) / 2.23694;
+              double target_s1dot = (car_speed + 5) / 2.23694;
               if (target_s1dot > 45 / 2.23694) {target_s1dot = 45 / 2.23694;}
 
               _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
 
               if (lane1_occupied) {
-                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane1_front_veh.s, lane1_front_veh.speed, s_trajectories, s_costs);
+                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane1_front_veh.s, lane1_front_veh.speed - 0.1, s_trajectories, s_costs);
               }
               if (lane2_occupied) {
-                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane2_front_veh.s, lane2_front_veh.speed, s_trajectories, s_costs);
+                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane2_front_veh.s, lane2_front_veh.speed - 0.1, s_trajectories, s_costs);
               }
               if (lane3_occupied) {
-                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane3_front_veh.s, lane3_front_veh.speed, s_trajectories, s_costs);
+                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane3_front_veh.s, lane3_front_veh.speed - 0.1, s_trajectories, s_costs);
               }
 
               _ = lateralTrajectories(d0, d0dot, d0ddot, 2.0, d_trajectories, d_costs);
@@ -358,40 +348,57 @@ int main() {
 
 
               // OPTIMAL PATH SELECTION WITH COLLISION CHECK
-              int MAX_ITER_FIND_OPT = 40;
+
+              double klon = 1.0;
+              double klat = 0.1;
+              // build sum matrix
+              MatrixXd sd_sum(s_costs.size(), d_costs.size());
+              for (int row=0; row<s_costs.size(); row++){
+                for (int col=0; col<d_costs.size(); col++){
+                  sd_sum(row,col) = klon * s_costs(row) + klat * d_costs(col);
+                }
+              }
+              // find minimum
+
+
+              int MAX_ITER_FIND_OPT = 50;
+              int iters = 0;
               for (int i=0; i<MAX_ITER_FIND_OPT; i++) {
                 bool is_crash = false;
-                vector<int> opt_idx = optimalCombination(s_costs, d_costs);
-                optimal_s_coeff = s_trajectories.col(opt_idx[0]);
-                optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+                int min_s_idx, min_d_idx;
+                double minCost = sd_sum.minCoeff(&min_s_idx, &min_d_idx);
+                optimal_s_coeff = s_trajectories.col(min_s_idx);
+                optimal_d_coeff = d_trajectories.col(min_d_idx);
 
                 // check collision for hrz
-                for (int t=0; t< n_planning_horizon; t++) {
+                for (int t=0; t<n_planning_horizon; t++) {
                   // my position
-                  double _s = getPosition(optimal_s_coeff, i*0.02);
-                  double _d = getPosition(optimal_d_coeff, i*0.02);
+                  double _s = getPosition(optimal_s_coeff, t*0.02);
+                  double _d = getPosition(optimal_d_coeff, t*0.02);
+                  double _sdot = getVelocity(optimal_s_coeff, t*0.02);
+                  double _ddot = getVelocity(optimal_d_coeff, t*0.02);
+
+                  double _heading = atan2( _ddot, _sdot );
 
                   // other car's predicted position
                   for (int n=0; n < NearbyVehicles.size(); n++) {
                     Vehicle other_car = NearbyVehicles[n];
-                    double _s_other = other_car.s + t * 0.02 * other_car.speed;
+                    double _s_other = other_car.s + (t+n_pass) * 0.02 * (other_car.speed-0.1);
                     double _d_other = other_car.d;
-                    int crash = checkCollision(_s, _d, 0.0, _s_other, _d_other, 0.0);
+                    int crash = checkCollision(_s, _d, _heading, _s_other, _d_other, 0.0);
                     if (crash == 1) {is_crash = true; break;}
                   }
                   if (is_crash) {break;}
                 }
-                if (is_crash) {s_costs(opt_idx[0]) = 99999; d_costs(opt_idx[1])=99999;}
+                iters = i;
+                if (is_crash) {sd_sum(min_s_idx, min_d_idx) = 9999999.99;}
+                else {break;}
               }
 
-
-              // vector<int> opt_idx = optimalCombination(s_costs, d_costs);
-              // optimal_s_coeff = s_trajectories.col(opt_idx[0]);
-              // optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+              cout << " [*] collision check num = " << iters << endl;
 
               // RUN!!
-
-              for (int hrz=0; hrz<n_planning_horizon - n_subset + 1; hrz++) {
+              for (int hrz=0; hrz<n_planning_horizon + 1; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
                 vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
