@@ -305,8 +305,8 @@ int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \
   double d1, MatrixXd &d_trajectories, VectorXd &d_costs) {
     vector<double> dd1set = {0};
-    vector<double> Tjset = {2.0, 2.5, 3.0, 3.5};
-    double max_speed = 5.0;
+    vector<double> Tjset = {2.0, 2.5, 3.0, 3.5, 3.7};
+    double max_speed = 6.0;
     double kspeed = 0.0;
 
     int _ = solvePolynomialsFullTerminalCond(d0, d0dot, d0ddot, d1, 0, 0, kspeed, max_speed, \

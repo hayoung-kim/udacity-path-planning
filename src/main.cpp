@@ -404,7 +404,7 @@ int main() {
 
                 // OPTIMAL TRAJECTORY SELECTION
                 double klon = 1.0;
-                double klat = 2.0;
+                double klat = 0.5;
                 int ns = planners[i].s_costs.size();
                 int nd = planners[i].d_costs.size();
                 int ntraj = ns * nd;
@@ -486,6 +486,8 @@ int main() {
                 }
 
               }
+              cout << " [-] obstacles : " << planners[0].obstacles.size() << ", " << \
+                      planners[1].obstacles.size() << ", " << planners[2].obstacles.size() << endl;
               cout << " [-] feasible : " << planners[0].feasible_traj_exist << ", " << \
                       planners[1].feasible_traj_exist << ", " << planners[2].feasible_traj_exist << endl;
               cout << " [-] following : " << planners[0].obstacle_following << ", " << \
