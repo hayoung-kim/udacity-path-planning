@@ -18,7 +18,7 @@ int solvePolynomialsTwoTerminalCond(double s0, double s0dot, double s0ddot, \
   MatrixXd &Trajectories, VectorXd &Costs);
 
 int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
-    double s1dot, MatrixXd &s_trajectories, VectorXd &s_costs);
+  double s1dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs);
 
 int FollowingTrajectories(double s0, double s0dot, double s0ddot, \
     double s_lv0, double s_lv0dot, MatrixXd &s_trajectories, VectorXd &s_costs);

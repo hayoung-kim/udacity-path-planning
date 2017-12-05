@@ -56,9 +56,9 @@ MatrixXd &Trajectories, VectorXd &Costs) {
   MatrixXd coeffs(6, ds1set.size() * Tjset.size());
   VectorXd costs(ds1set.size() * Tjset.size());
 
-  double kj = 0.1*3; // weight for jerk
-  double kt = 1.0*3; // weight for time
-  double ks = 3.0*3; // weight for terminal state
+  double kj = 0.1; // weight for jerk
+  double kt = 0; // weight for time
+  double ks = 0; // weight for terminal state
 
   double acc_thres = 6.0; // acceleration threshold < 6m/s^2
 
@@ -151,9 +151,9 @@ MatrixXd &Trajectories, VectorXd &Costs) {
 
   MatrixXd coeffs(6, ds1dotset.size() * Tjset.size());
   VectorXd costs(ds1dotset.size() * Tjset.size());
-  double kj = 0.1; // weight for jerk
-  double kt = 1.0; // weight for time
-  double ksdot = 3.0; // weight for terminal state
+  double kj = 0.1*2; // weight for jerk
+  double kt = 0*2; // weight for time
+  double ksdot = 0*2; // weight for terminal state
 
   double acc_thres = 6.0; // acceleration threshold < 6m/s^2
 
@@ -222,17 +222,16 @@ MatrixXd &Trajectories, VectorXd &Costs) {
 }
 
 int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
-  double s1dot, MatrixXd &s_trajectories, VectorXd &s_costs) {
+  double s1dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
 
     vector<double> ds1dotset;
-    vector<double> Tjset = {3.0,3.5,4.0,4.5};
-    int n_speed_sets = 5;
-    double range = 5.0;
+    vector<double> ds1dotcand = {-10.0, -5.0, 0, 5.0, 10.0};
+    vector<double> Tjset = {3.0,3.5,4.0};
 
-    for (int i=0; i<n_speed_sets; i++){
-      double ds1dot = -range + i * (range/n_speed_sets);
-      if (s1dot + ds1dot <= 22.5) {
-        if (s1dot + ds1dot >=1) ds1dotset.push_back(ds1dot);
+    for (int i=0; i<ds1dotcand.size(); i++){
+      double _ds1dot = ds1dotcand[i];
+      if (s1dot + _ds1dot <= max_speed) {
+        if (s1dot + _ds1dot >=1) ds1dotset.push_back(_ds1dot);
       }
     }
 

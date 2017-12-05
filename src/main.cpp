@@ -34,6 +34,31 @@ typedef struct Vehicle {
   // vector<double> future_s;
 } Vehicle;
 
+typedef struct Planner {
+  double target_d;
+  vector<Vehicle> obstacles;
+  Vehicle target_to_follow;
+  int following_target_id;
+  double dist_to_target;
+  MatrixXd s_trajectories;
+  VectorXd s_costs;
+  MatrixXd d_trajectories;
+  VectorXd d_costs;
+  bool obstacle_following; // if false: velocity keeping
+  bool feasible_traj_exist;
+  int optimal_s_id;
+  int optimal_d_id;
+  double minimal_cost;
+} Planner;
+
+int getMyLane(double d0) {
+  int mylane = 1;
+  if (d0 > 0 && d0 <= 4) {mylane = 0;}
+  else if (d0 >4 && d0 <= 8) {mylane = 1;}
+  else {mylane = 2;}
+  return mylane;
+}
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -144,18 +169,41 @@ int main() {
             double pos_yaw;
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+            double MPH2mps = 1.0/2.23694;
+            double max_speed = 47*MPH2mps;
 
             int prev_path_size = previous_path_x.size();
             step += 1;
             cout << "------------------------------------------------" << endl;
             cout << " [-] step: " << step << endl;
-            // cout << "optimal_s_coeff: \n" << optimal_s_coeff << endl;
-            cout << " [-] prev_path_size: " << prev_path_size << endl;
+            // // cout << "optimal_s_coeff: \n" << optimal_s_coeff << endl;
+            // cout << " [-] prev_path_size: " << prev_path_size << endl;
+            //
+            // cout << " [-] car_s: " << car_s << endl;
+            // cout << " [-] car_d: " << car_d << endl;
+            // cout << " [-] speed: " << car_speed << " (MPH)" << endl;
+            // cout << " [-] speed: " << car_speed * 0.44704 << " (m/s)" << endl;
 
-            cout << " [-] car_s: " << car_s << endl;
-            cout << " [-] car_d: " << car_d << endl;
-            cout << " [-] speed: " << car_speed << " (MPH)" << endl;
-            cout << " [-] speed: " << car_speed * 0.44704 << " (m/s)" << endl;
+            // INITIALIZE PLANNER
+            vector<Planner> planners;
+            for (int i=0; i<3; i++) {
+              double _target_d = 2.0 + 4* i;
+              Planner planner;
+              MatrixXd s_trajectories(6, 0);
+              VectorXd s_costs(0);
+              MatrixXd d_trajectories(6, 0);
+              VectorXd d_costs(0);
+              planner.s_trajectories = s_trajectories;
+              planner.s_costs = s_costs;
+              planner.d_trajectories = d_trajectories;
+              planner.d_costs = d_costs;
+              planner.target_d = _target_d;
+              planner.dist_to_target = 999.9;
+              planner.obstacle_following = false;
+              planner.feasible_traj_exist = false;
+              planner.minimal_cost = 9999.9;
+              planners.push_back(planner);
+            }
 
             // --------------------------------------------------
             // GET INFORMATION OF NEARBY VEHICLES
@@ -169,7 +217,7 @@ int main() {
               double d_other = sensor_fusion[i][6];
               // NEARBY VEHICLES
               double detect_range_front = 70.0;
-              double detect_range_backward = 30.0;
+              double detect_range_backward = 20.0;
 
               if ((s_dist < detect_range_front) && (s_dist >= - detect_range_backward) && (d_other > 0)) {
                 Vehicle vehicle;
@@ -187,75 +235,49 @@ int main() {
             }
 
 
-            cout << " [-] # NearbyVehicles = " << NearbyVehicles.size() << endl;
+            cout << " [-] NearbyVehicles = " << NearbyVehicles.size() << endl;
+            int mylane = getMyLane(car_d);
+
+            cout << " [-] mylane = " << mylane + 1 << endl;
 
             // ---------------------------------------
             // EXTRACT NEAREST VEHICLE FOR EACH LANE
             // ---------------------------------------
-            bool lane1_occupied = false;
-            bool lane2_occupied = false;
-            bool lane3_occupied = false;
-            Vehicle lane1_front_veh, lane2_front_veh, lane3_front_veh;
-            double lane1_front_dist = 999.0;
-            double lane2_front_dist = 999.0;
-            double lane3_front_dist = 999.0;
-
             for (int i=0; i<NearbyVehicles.size(); i++) {
               Vehicle _vehicle = NearbyVehicles[i];
-              if (_vehicle.s - car_s > 0) {
-                if ((_vehicle.d > 0) && (_vehicle.d <= 4)) {
-                  lane1_occupied = true;
-                  if (_vehicle.s - car_s < lane1_front_dist){
-                    lane1_front_veh = _vehicle;
-                    lane1_front_dist = _vehicle.s - car_s;
+              for (int j=0; j<planners.size(); j++) {
+                if ((_vehicle.d > planners[j].target_d - 2) && (_vehicle.d <= planners[j].target_d + 2)) {
+
+                  // frontmost obstacle
+                  double from_ego_to_other = _vehicle.s - car_s;
+                  if (j == mylane) {
+                    if (from_ego_to_other >= 0) {
+                      planners[j].obstacles.push_back(_vehicle);
+                    }
                   }
-                }
-                else if ((_vehicle.d > 4) && (_vehicle.d <= 8)) {
-                  lane2_occupied = true;
-                  if (_vehicle.s - car_s < lane2_front_dist){
-                    lane2_front_veh = _vehicle;
-                    lane2_front_dist = _vehicle.s - car_s;
-                  }
-                }
-                else {
-                  lane3_occupied = true;
-                  if (_vehicle.s - car_s < lane3_front_dist){
-                    lane3_front_veh = _vehicle;
-                    lane3_front_dist = _vehicle.s - car_s;
+                  else {planners[j].obstacles.push_back(_vehicle);}
+
+                  if (from_ego_to_other >= 5){
+                    if (from_ego_to_other < planners[j].dist_to_target) {
+                      planners[j].dist_to_target = from_ego_to_other;
+                      planners[j].target_to_follow = _vehicle;
+                    }
+                    if (from_ego_to_other <= 50) {
+                      planners[j].obstacle_following = true;
+                    }
                   }
                 }
               }
             }
 
-            if (lane1_occupied) {cout << " [*] lane1 front: " << lane1_front_veh.s - car_s << " (m)" << endl;}
-            else {cout << " [*] lane1 front: - (m)" << endl;}
-            if (lane1_occupied) {cout << " [*] lane1 front: " << lane1_front_veh.speed << " (m/s)" << endl;}
-            else {cout << " [*] lane1 front: - (m/s)" << endl;}
-            if (lane2_occupied) {cout << " [*] lane2 front: " << lane2_front_veh.s - car_s << " (m)" << endl;}
-            else {cout << " [*] lane2 front: - (m)" << endl;}
-            if (lane2_occupied) {cout << " [*] lane2 front: " << lane2_front_veh.speed << " (m/s)" << endl;}
-            else {cout << " [*] lane2 front: - (m/s)" << endl;}
-            if (lane3_occupied) {cout << " [*] lane3 front: " << lane3_front_veh.s - car_s << " (m)" << endl;}
-            else {cout << " [*] lane3 front: - (m)" << endl;}
-            if (lane3_occupied) {cout << " [*] lane3 front: " << lane3_front_veh.speed << " (m/s)" << endl;}
-            else {cout << " [*] lane3 front: - (m/s)" << endl;}
-
-
-            // cout << " [-] Car speed= " << car_speed << endl;
-            MatrixXd s_trajectories(6, 0);
-            VectorXd s_costs(0);
-            MatrixXd d_trajectories(6, 0);
-            VectorXd d_costs(0);
-
-            int n_planning_horizon = 100;
-            int n_use_previous_path = 0;
+            int n_planning_horizon = 150;
 
             int _;
 
             // WAYPOINTS SMOOTHING
             int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
             int id_interp_start = _close_way_point_id - 5;
-            int id_interp_end   = _close_way_point_id + 5;
+            int id_interp_end   = _close_way_point_id + 7;
             int id_map_last = map_waypoints_x.size();
 
             // cout << "setting a range for interpolate ... " << endl;
@@ -278,8 +300,6 @@ int main() {
 
             vector<double> map_ss, map_xs, map_ys;
             double _s = map_s_to_interp[0];
-            // cout << " [-] s_start = " << _s << endl;
-            // cout << " [-] s_end = " << map_s_to_interp[map_s_to_interp.size()-1] << endl;
 
             while (_s < map_s_to_interp[map_s_to_interp.size()-1]) {
               double _x = x_given_s(_s);
@@ -287,18 +307,34 @@ int main() {
               map_ss.push_back(_s);
               map_xs.push_back(_x);
               map_ys.push_back(_y);
-              _s += 0.2;
+              _s += 0.1;
             }
 
             // TRAJECTORY PLANNING
 
+            // SET INITIAL s0, d0 and their derivatives
+            // prev_path_size : number of left over of previous planned trajectory
+            // n_planning_horizon : n_use_previous_path + n_newly_planned_path
+
+            int n_pass = n_planning_horizon - prev_path_size;
+            int start_index = n_pass - 1;
+            double start_time = start_index * 0.02;
+
+            double s0 = getPosition(optimal_s_coeff, start_time);
+            double s0dot = getVelocity(optimal_s_coeff, start_time);
+            double s0ddot = getAcceleration(optimal_s_coeff, start_time);
+            double d0 = getPosition(optimal_d_coeff, start_time);
+            double d0dot = getVelocity(optimal_d_coeff, start_time);
+            double d0ddot = getAcceleration(optimal_d_coeff, start_time);
+
             if (prev_path_size == 0) {
-              double target_s1dot = 20 / 2.23694;
-              _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, s_trajectories, s_costs);
-              _ = lateralTrajectories(car_d, 0, 0, 6.0, d_trajectories, d_costs);
-              vector<int> opt_idx = optimalCombination(s_costs, d_costs);
-              optimal_s_coeff = s_trajectories.col(opt_idx[0]);
-              optimal_d_coeff = d_trajectories.col(opt_idx[1]);
+              double target_s1dot = 20 * MPH2mps;
+              _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, max_speed, \
+                                              planners[1].s_trajectories, planners[1].s_costs);
+              _ = lateralTrajectories(car_d, 0, 0, 6.0, planners[1].d_trajectories, planners[1].d_costs);
+              vector<int> opt_idx = optimalCombination(planners[1].s_costs, planners[1].d_costs);
+              optimal_s_coeff = planners[1].s_trajectories.col(opt_idx[0]);
+              optimal_d_coeff = planners[1].d_trajectories.col(opt_idx[1]);
 
               for (int hrz=0; hrz<n_planning_horizon; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
@@ -310,92 +346,133 @@ int main() {
               }
             }
             else {
-              // SET INITIAL s0, d0 and their derivatives
-              // prev_path_size : number of left over of previous planned trajectory
-              // n_use_previous_path : how many use previous path
-              // n_planning_horizon : n_use_previous_path + n_newly_planned_path
-
-              int n_pass = n_planning_horizon - prev_path_size;
-              int start_index = n_pass - 1;
-              double start_time = start_index * 0.02;
-
-              double s0 = getPosition(optimal_s_coeff, start_time);
-              double s0dot = getVelocity(optimal_s_coeff, start_time);
-              double s0ddot = getAcceleration(optimal_s_coeff, start_time);
-              double d0 = getPosition(optimal_d_coeff, start_time);
-              double d0dot = getVelocity(optimal_d_coeff, start_time);
-              double d0ddot = getAcceleration(optimal_d_coeff, start_time);
-
               // GENERATE TRAJECTORY CANDIDATES AND COSTS
-              double target_s1dot = (car_speed + 5) / 2.23694;
-              if (target_s1dot > 45 / 2.23694) {target_s1dot = 45 / 2.23694;}
+              double target_s1dot = (car_speed + 15) * MPH2mps;
+              if (target_s1dot > max_speed) {target_s1dot = max_speed;}
 
-              _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, target_s1dot, s_trajectories, s_costs);
-
-              if (lane1_occupied) {
-                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane1_front_veh.s, lane1_front_veh.speed - 0.1, s_trajectories, s_costs);
-              }
-              if (lane2_occupied) {
-                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane2_front_veh.s, lane2_front_veh.speed - 0.1, s_trajectories, s_costs);
-              }
-              if (lane3_occupied) {
-                _ = FollowingTrajectories(s0, s0dot, s0ddot, lane3_front_veh.s, lane3_front_veh.speed - 0.1, s_trajectories, s_costs);
-              }
-
-              _ = lateralTrajectories(d0, d0dot, d0ddot, 2.0, d_trajectories, d_costs);
-              _ = lateralTrajectories(d0, d0dot, d0ddot, 6.0, d_trajectories, d_costs);
-              _ = lateralTrajectories(d0, d0dot, d0ddot, 10.0, d_trajectories, d_costs);
-
-
-              // OPTIMAL PATH SELECTION WITH COLLISION CHECK
-
-              double klon = 1.0;
-              double klat = 0.1;
-              // build sum matrix
-              MatrixXd sd_sum(s_costs.size(), d_costs.size());
-              for (int row=0; row<s_costs.size(); row++){
-                for (int col=0; col<d_costs.size(); col++){
-                  sd_sum(row,col) = klon * s_costs(row) + klat * d_costs(col);
-                }
-              }
-              // find minimum
-
-
-              int MAX_ITER_FIND_OPT = 50;
-              int iters = 0;
-              for (int i=0; i<MAX_ITER_FIND_OPT; i++) {
-                bool is_crash = false;
-                int min_s_idx, min_d_idx;
-                double minCost = sd_sum.minCoeff(&min_s_idx, &min_d_idx);
-                optimal_s_coeff = s_trajectories.col(min_s_idx);
-                optimal_d_coeff = d_trajectories.col(min_d_idx);
-
-                // check collision for hrz
-                for (int t=0; t<n_planning_horizon; t++) {
-                  // my position
-                  double _s = getPosition(optimal_s_coeff, t*0.02);
-                  double _d = getPosition(optimal_d_coeff, t*0.02);
-                  double _sdot = getVelocity(optimal_s_coeff, t*0.02);
-                  double _ddot = getVelocity(optimal_d_coeff, t*0.02);
-
-                  double _heading = atan2( _ddot, _sdot );
-
-                  // other car's predicted position
-                  for (int n=0; n < NearbyVehicles.size(); n++) {
-                    Vehicle other_car = NearbyVehicles[n];
-                    double _s_other = other_car.s + (t+n_pass) * 0.02 * (other_car.speed-0.1);
-                    double _d_other = other_car.d;
-                    int crash = checkCollision(_s, _d, _heading, _s_other, _d_other, 0.0);
-                    if (crash == 1) {is_crash = true; break;}
+              for (int i=0; i<3; i++) {
+                // LONGITUDINAL TRAJECTORY GENERATION
+                if (i == mylane) {
+                  if (planners[i].obstacle_following){
+                    Vehicle target_obstacle = planners[i].target_to_follow;
+                    _ = FollowingTrajectories(s0, s0dot, s0ddot, \
+                          target_obstacle.s, target_obstacle.speed - 0.1, \
+                          planners[i].s_trajectories, planners[i].s_costs);
                   }
-                  if (is_crash) {break;}
+                  else {
+                    _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
+                                                    target_s1dot, max_speed, \
+                                                    planners[i].s_trajectories, planners[i].s_costs);
+                  }
                 }
-                iters = i;
-                if (is_crash) {sd_sum(min_s_idx, min_d_idx) = 9999999.99;}
-                else {break;}
+                else {
+                  if (planners[i].obstacle_following){
+                    Vehicle target_obstacle = planners[i].target_to_follow;
+                    _ = FollowingTrajectories(s0, s0dot, s0ddot, \
+                          target_obstacle.s, target_obstacle.speed - 0.1, \
+                          planners[i].s_trajectories, planners[i].s_costs);
+                  }
+                  _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
+                                                  target_s1dot, max_speed, \
+                                                  planners[i].s_trajectories, planners[i].s_costs);
+                }
+
+                // LATERAL TRAJECTORY GENERATION
+                _ = lateralTrajectories(d0, d0dot, d0ddot, \
+                                        planners[i].target_d, \
+                                        planners[i].d_trajectories, planners[i].d_costs);
+
+                // OPTIMAL TRAJECTORY SELECTION
+                double klon = 1.0;
+                double klat = 0;
+                int ns = planners[i].s_costs.size();
+                int nd = planners[i].d_costs.size();
+                int ntraj = ns * nd;
+
+                // build cost matrix
+                MatrixXd sd_costs(ns, nd);
+                cout << " [*] build cost matrix " << i+1 << " ..." << endl;
+                for (int ss=0; ss<ns; ss++){
+                  for (int dd=0; dd<nd; dd++){
+                    sd_costs(ss,dd) = klon * planners[i].s_costs[ss] \
+                                    + klat * planners[i].d_costs[dd];
+                  }
+                }
+
+                cout << " [-] sd_costs size: (" << ns << ", " << nd << ")" << endl;
+
+                // collision check
+                // cout << " [*] checking collision " << i+1 << " ..." << endl;
+                int max_iter = 60;
+                int iters = 0;
+                if (max_iter <= ntraj) {max_iter = ntraj;}
+                for (int k=0; k<max_iter; k++) {
+                  // cout << " [*] iters " << k << endl;
+                  bool crash_predicted = false;
+                  int min_s_idx, min_d_idx;
+                  double minCost = sd_costs.minCoeff(&min_s_idx, &min_d_idx);
+                  optimal_s_coeff = planners[i].s_trajectories.col(min_s_idx);
+                  optimal_d_coeff = planners[i].d_trajectories.col(min_d_idx);
+
+                  for (int t=0; t<n_planning_horizon; t++) {
+                    // my position
+                    double _s = getPosition(optimal_s_coeff, t*0.02);
+                    double _d = getPosition(optimal_d_coeff, t*0.02);
+                    // double _sdot = getVelocity(optimal_s_coeff, t*0.02);
+                    // double _ddot = getVelocity(optimal_d_coeff, t*0.02);
+                    // double _heading = atan2( _ddot, _sdot );
+
+                    // other car's position
+                    for (int n=0; n<planners[i].obstacles.size(); n++) {
+                      Vehicle other_car = planners[i].obstacles[n];
+                      double _s_other = other_car.s + t * 0.02 * (other_car.speed - 0.2);
+                      double _d_other = other_car.d;
+                      int crash = checkCollision(_s, _d, 0, _s_other, _d_other, 0.0);
+                      if (crash == 1) {crash_predicted = true; break;}
+                    }
+                    if (crash_predicted) {sd_costs(min_s_idx, min_d_idx) = 9999999999; break;}
+                  }
+
+                  if (!crash_predicted) {
+                    // cout << " [*] LANE " << i+1 << " is FREE!" << endl;
+                    planners[i].optimal_s_id = min_s_idx;
+                    planners[i].optimal_d_id = min_d_idx;
+                    planners[i].minimal_cost = sd_costs(min_s_idx, min_d_idx);
+                    break;
+                  }
+                  iters = k;
+                }
+                if (iters == max_iter) {
+                  planners[i].feasible_traj_exist = false;
+                }
               }
 
-              cout << " [*] collision check num = " << iters << endl;
+              // FIND OPTIMAL ONE
+              // cout << " [*] finding optimal lane ..." << endl;
+              double minimal_cost = 999999999;
+              int opt = 1;
+              for (int i=0; i<3; i++) {
+
+                if (planners[i].feasible_traj_exist) {
+                  if (planners[i].minimal_cost < minimal_cost) {
+                    opt = i;
+                    minimal_cost = planners[i].minimal_cost;
+                  }
+                }
+
+              }
+              cout << " [-] feasible : " << planners[0].feasible_traj_exist << ", " << \
+                      planners[1].feasible_traj_exist << ", " << planners[2].feasible_traj_exist << endl;
+              cout << " [-] following : " << planners[0].obstacle_following << ", " << \
+                      planners[1].obstacle_following << ", " << planners[2].obstacle_following << endl;
+              cout << " [-] cost : " << planners[0].minimal_cost << ", " << \
+                      planners[1].minimal_cost << ", " << planners[2].minimal_cost << endl;
+              cout << " [-] optimal lane: " << opt+1 << endl;
+
+              int opt_s = planners[opt].optimal_s_id;
+              int opt_d = planners[opt].optimal_d_id;
+              optimal_s_coeff = planners[opt].s_trajectories.col(opt_s);
+              optimal_d_coeff = planners[opt].d_trajectories.col(opt_d);
 
               // RUN!!
               for (int hrz=0; hrz<n_planning_horizon + 1; hrz++) {
