@@ -10,6 +10,12 @@ using namespace std;
 using namespace Eigen;
 #include "polysolver.h"
 
+double huber_loss(double speed, double target) {
+  double delta = 5; // m/s
+  if (abs(speed - target) < delta) { return 1.0/2*(speed-target)*(speed-target);}
+  else {return delta * (abs(speed - target) - 1.0/2*delta);}
+}
+
 VectorXd getPolynomialCoeffs(\
   double s0, double s0_dot, double s0_ddot, \
   double st, double st_dot, double st_ddot, \
@@ -42,7 +48,8 @@ VectorXd getPolynomialCoeffs(\
 }
 
 int solvePolynomialsFullTerminalCond(double s0, double s0dot, double s0ddot, \
-double s1, double s1dot, double s1ddot, vector<double> Tjset, vector<double> ds1set, \
+double s1, double s1dot, double s1ddot, double kspeed, double max_speed, \
+vector<double> Tjset, vector<double> ds1set, \
 MatrixXd &Trajectories, VectorXd &Costs) {
   Matrix3d M1;
   M1 << 1, 0, 0,
@@ -59,8 +66,9 @@ MatrixXd &Trajectories, VectorXd &Costs) {
   double kj = 0.1; // weight for jerk
   double kt = 0; // weight for time
   double ks = 0; // weight for terminal state
+  // double kspeed = 9.0;
 
-  double acc_thres = 6.0; // acceleration threshold < 6m/s^2
+  double acc_thres = 5.0; // acceleration threshold < 6m/s^2
 
   int N_ACCELERATION_CONDITION_SATISFIED = 0;
 
@@ -103,7 +111,13 @@ MatrixXd &Trajectories, VectorXd &Costs) {
                           + 720 * c345(1) * c345(2) * Tj*Tj*Tj*Tj \
                           + 720 * c345(2) * c345(2) * Tj*Tj*Tj*Tj*Tj;
         double cost_terminal = ds1 * ds1;
-        double cost_Total = kj * cost_Jerk + kt * Tj + ks * cost_terminal;
+        double speed_terminal = c012(1) + 2 * c012(2) * Tj \
+                                + 3 * c345(0) * Tj * Tj + 4 * c345(1) * Tj * Tj * Tj \
+                                + 5 * c345(2) * Tj * Tj * Tj * Tj;
+        double cost_Total = kj * cost_Jerk \
+                            + kt * Tj \
+                            + ks * cost_terminal \
+                            + kspeed * huber_loss(speed_terminal, max_speed);
 
         // cout << "c34: " << endl;
         // cout << c34 << "\n" << endl;
@@ -134,7 +148,7 @@ MatrixXd &Trajectories, VectorXd &Costs) {
 }
 
 int solvePolynomialsTwoTerminalCond(double s0, double s0dot, double s0ddot, \
-double s1dot, double s1ddot, vector<double> Tjset, vector<double> ds1dotset, \
+double s1dot, double s1ddot, double kspeed, double max_speed, vector<double> Tjset, vector<double> ds1dotset, \
 MatrixXd &Trajectories, VectorXd &Costs) {
   // cout << "ds1set size: " << ds1dotset.size() << endl;
   // cout << "Tjset size: " << Tjset.size() << "\n" << endl;
@@ -151,11 +165,12 @@ MatrixXd &Trajectories, VectorXd &Costs) {
 
   MatrixXd coeffs(6, ds1dotset.size() * Tjset.size());
   VectorXd costs(ds1dotset.size() * Tjset.size());
-  double kj = 0.1*2; // weight for jerk
-  double kt = 0*2; // weight for time
-  double ksdot = 0*2; // weight for terminal state
+  double kj = 0.1; // weight for jerk
+  double kt = 0; // weight for time
+  double ksdot = 0; // weight for terminal state
+  // double kspeed = 9.0; // weight for terminal speed (faster = better)
 
-  double acc_thres = 6.0; // acceleration threshold < 6m/s^2
+  double acc_thres = 5.0; // acceleration threshold < 6m/s^2
 
   int N_ACCELERATION_CONDITION_SATISFIED = 0;
 
@@ -192,7 +207,15 @@ MatrixXd &Trajectories, VectorXd &Costs) {
                           + 144 * c34(0) * c34(1) * Tj * Tj \
                           + 192 * c34(1) * c34(1) * Tj * Tj * Tj;
         double cost_terminal = ds1dot * ds1dot;
-        double cost_Total = kj * cost_Jerk + kt * Tj + ksdot * cost_terminal;
+        double speed_terminal = c012(1) + 2* c012(2) * Tj \
+                                + 3* c34(0) * Tj * Tj + 4 * c34(1) * Tj * Tj * Tj;
+        double cost_Total = kj * cost_Jerk \
+                            + kt * Tj \
+                            + ksdot * cost_terminal \
+                            + kspeed * huber_loss(speed_terminal, max_speed);
+        // cout << " [x] speed terminal = " << speed_terminal << endl;
+        // cout << " [x] speed cost = " << kspeed / (speed_terminal+ 0.001) << endl;
+        // cout << " [x] jerk cost = " << kj * cost_Jerk << endl;
 
         // cout << "c34: " << endl;
         // cout << c34 << "\n" << endl;
@@ -225,30 +248,33 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
   double s1dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
 
     vector<double> ds1dotset;
-    vector<double> ds1dotcand = {-10.0, -5.0, 0, 5.0, 10.0};
+    vector<double> ds1dotcand = {-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0};
     vector<double> Tjset = {3.0,3.5,4.0};
+    double kspeed = 9.0;
 
     for (int i=0; i<ds1dotcand.size(); i++){
       double _ds1dot = ds1dotcand[i];
       if (s1dot + _ds1dot <= max_speed) {
-        if (s1dot + _ds1dot >=1) ds1dotset.push_back(_ds1dot);
+        if (s1dot + _ds1dot >= 0) ds1dotset.push_back(_ds1dot);
       }
     }
 
-    int _ = solvePolynomialsTwoTerminalCond(s0, s0dot, s0ddot, s1dot, 0, \
+    int _ = solvePolynomialsTwoTerminalCond(s0, s0dot, s0ddot, s1dot, 0, kspeed, max_speed, \
                                             Tjset, ds1dotset, s_trajectories, s_costs);
 
     return 0;
 }
 
 
-int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, double s_lv0dot, MatrixXd &s_trajectories, VectorXd &s_costs) {
+int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, double s_lv0dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
   // tunning parameters : safety distance and CTG param
   double dist_safe = 15.0;
   double tau = 1.0; // constant time gap policy parameter
 
+  double kspeed = 9.0;
+
   vector<double> Tjset = {3.0, 3.5, 4.0, 4.5};
-  vector<double> ds1set = {-5.0, -3.0, -1.0, 0, 1.0, 3.0};
+  vector<double> ds1set = {-5.0, -3.0, 0, 5.0};
 
   double s1ddot = 0.0;
 
@@ -269,7 +295,7 @@ int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, 
 
     // solve polynomials with full condition
     int _ = solvePolynomialsFullTerminalCond(s0, s0dot, s0ddot, \
-                                             s_target, s_targetdot, s_targetddot, \
+                                             s_target, s_targetdot, s_targetddot, kspeed, max_speed,\
                                              _Tjset, ds1set, s_trajectories, s_costs);
 
   }
@@ -279,8 +305,11 @@ int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \
   double d1, MatrixXd &d_trajectories, VectorXd &d_costs) {
     vector<double> dd1set = {0};
-    vector<double> Tjset = {3.0, 3.5, 4.0, 4.5};
-    int _ = solvePolynomialsFullTerminalCond(d0, d0dot, d0ddot, d1, 0, 0, \
+    vector<double> Tjset = {2.0, 2.5, 3.0, 3.5};
+    double max_speed = 5.0;
+    double kspeed = 0.0;
+
+    int _ = solvePolynomialsFullTerminalCond(d0, d0dot, d0ddot, d1, 0, 0, kspeed, max_speed, \
                                              Tjset, dd1set, d_trajectories, d_costs);
     return 0;
   }
