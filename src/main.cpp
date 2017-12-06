@@ -309,11 +309,11 @@ int main() {
             int _close_way_point_id;
             double start_s;
             if (step < 20){
-              start_s = map_waypoints_s[id_map_last-5];
-              double start_x = map_waypoints_x[id_map_last-5];
-              double start_y = map_waypoints_y[id_map_last-5];
+              start_s = map_waypoints_s[id_map_last-3];
+              double start_x = map_waypoints_x[id_map_last-3];
+              double start_y = map_waypoints_y[id_map_last-3];
 
-              _close_way_point_id = ClosestWaypoint(start_x, start_y, map_waypoints_x, map_waypoints_y) + 1;
+              _close_way_point_id = ClosestWaypoint(start_x, start_y, map_waypoints_x, map_waypoints_y);
               if (_close_way_point_id == id_map_last) {
                 for (int jj=0; jj<10; jj++) {cout << " [!!!!] CLOSE WAY POINT ID = MAP'S LAST WAYPOINT ID" << endl;}
               }
@@ -327,10 +327,10 @@ int main() {
             // int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
 
             int id_interp_start = _close_way_point_id - 4;
-            int id_interp_end   = _close_way_point_id + 9;
+            int id_interp_end   = _close_way_point_id + 7;
 
             // cout << "setting a range for interpolate ... " << endl;
-            if (id_interp_start < 0) {id_interp_start = 0;}
+            // if (id_interp_start < 0) {id_interp_start = 0;}
             // if (id_interp_end > id_map_last) {id_interp_end = id_map_last;}
             cout << "smoothing 2" << endl;
             vector<double> map_x_to_interp, map_y_to_interp, map_s_to_interp;
@@ -353,6 +353,13 @@ int main() {
 
                 cout << "(s,x,y) = " << map_waypoints_s[_map_id] + max_s << \
                         ", " << map_waypoints_x[_map_id] << ", " << map_waypoints_y[_map_id] << endl;
+              }
+              else if (map_id < 0) {
+                int _map_id = id_map_last + map_id + 1;
+                cout << map_id << endl;
+                map_s_to_interp.push_back(map_waypoints_s[_map_id] - max_s);
+                map_x_to_interp.push_back(map_waypoints_x[_map_id]);
+                map_y_to_interp.push_back(map_waypoints_y[_map_id]);
               }
               else {
                 map_s_to_interp.push_back(map_waypoints_s[map_id]);
@@ -583,17 +590,22 @@ int main() {
 
               // FIND OPTIMAL ONE
               // cout << " [*] finding optimal lane ..." << endl;
-              double minimal_cost = 9999999.9;
+              double minimal_cost = 999999.9;
               int opt = 1;
               for (int i=0; i<3; i++) {
-
                 if (planners[i].feasible_traj_exist) {
-                  if (planners[i].minimal_cost < minimal_cost) {
+                  if (planners[i].minimal_cost <= minimal_cost) {
                     opt = i;
                     minimal_cost = planners[i].minimal_cost;
                   }
                 }
-
+              }
+              for (int i=0; i<2; i++) {
+                if ((i != opt) && (abs(planners[i].minimal_cost - minimal_cost) < 0.1)) {
+                  if (planners[i].dist_to_target > planners[opt].dist_to_target) {
+                    opt = i;
+                  }
+                }
               }
 
               cout << " [-] NearbyVehicles = " << NearbyVehicles.size() << endl;
