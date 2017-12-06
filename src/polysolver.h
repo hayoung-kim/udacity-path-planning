@@ -11,11 +11,11 @@ VectorXd getPolynomialCoeffs(\
   double T_terminal);
 
 int solvePolynomialsFullTerminalCond(double s0, double s0dot, double s0ddot, \
-  double s1, double s1dot, double s1ddot, double kspeed, double max_speed, vector<double> Tjset, vector<double> ds1set, \
+  double s1, double s1dot, double s1ddot, double kspeed, double ks, double max_speed, double acc_thres, vector<double> Tjset, vector<double> ds1set, \
   MatrixXd &Trajectories, VectorXd &Costs);
 
 int solvePolynomialsTwoTerminalCond(double s0, double s0dot, double s0ddot, \
-  double s1dot, double s1ddot, double kspeed, double max_speed, vector<double> Tjset, vector<double> ds1dotset, \
+  double s1dot, double s1ddot, double kspeed, double max_speed, double acc_thres, vector<double> Tjset, vector<double> ds1dotset, \
   MatrixXd &Trajectories, VectorXd &Costs);
 
 int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
@@ -25,7 +25,7 @@ int FollowingTrajectories(double s0, double s0dot, double s0ddot, \
     double s_lv0, double s_lv0dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs);
 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \
-  double d1, MatrixXd &d_trajectories, VectorXd &d_costs);
+  double d1, bool in_mylane, MatrixXd &d_trajectories, VectorXd &d_costs);
 
 vector<int> optimalCombination(VectorXd s_costs, VectorXd d_costs);
 

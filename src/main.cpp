@@ -123,7 +123,7 @@ int main() {
   int step = 0;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx\
-    ,&map_waypoints_dy, &optimal_s_coeff, &optimal_d_coeff, &step](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+    ,&map_waypoints_dy, &optimal_s_coeff, &optimal_d_coeff, &step, &max_s](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -171,7 +171,7 @@ int main() {
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             double MPH2mps = 1.0/2.23694;
-            double max_speed = 44*MPH2mps;
+            double max_speed = 45*MPH2mps;
 
             int prev_path_size = previous_path_x.size();
             step += 1;
@@ -262,12 +262,12 @@ int main() {
                   }
                   else {planners[j].obstacles.push_back(_vehicle);}
 
-                  if (from_ego_to_other >= 5.0){
+                  if (from_ego_to_other >= 0){
                     if (from_ego_to_other < planners[j].dist_to_target) {
                       planners[j].dist_to_target = from_ego_to_other;
                       planners[j].target_to_follow = _vehicle;
                     }
-                    if (from_ego_to_other <= 40) {
+                    if (from_ego_to_other <= 50) {
                       planners[j].obstacle_following = true;
                     }
                   }
@@ -334,9 +334,10 @@ int main() {
 
             if (prev_path_size == 0) {
               double target_s1dot = 20 * MPH2mps;
+              bool in_mylane = true;
               _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, max_speed, \
                                               planners[1].s_trajectories, planners[1].s_costs);
-              _ = lateralTrajectories(car_d, 0, 0, 6.0, planners[1].d_trajectories, planners[1].d_costs);
+              _ = lateralTrajectories(car_d, 0, 0, 6.0, in_mylane, planners[1].d_trajectories, planners[1].d_costs);
               vector<int> opt_idx = optimalCombination(planners[1].s_costs, planners[1].d_costs);
               optimal_s_coeff = planners[1].s_trajectories.col(opt_idx[0]);
               optimal_d_coeff = planners[1].d_trajectories.col(opt_idx[1]);
@@ -358,6 +359,7 @@ int main() {
               for (int i=0; i<3; i++) {
                 // LONGITUDINAL TRAJECTORY GENERATION
                 if (i == mylane) {
+                  bool in_mylane = true;
                   // cout << " [*] planning trajecotries to my lane ..." << endl;
                   if (planners[i].obstacle_following){
                     Vehicle target_obstacle = planners[i].target_to_follow;
@@ -374,12 +376,13 @@ int main() {
                                                   planners[i].s_trajectories, planners[i].s_costs);
                   // LATERAL TRAJECTORY GENERATION
                   _ = lateralTrajectories(d0, d0dot, d0ddot, \
-                                          planners[i].target_d, \
+                                          planners[i].target_d, in_mylane, \
                                           planners[i].d_trajectories, planners[i].d_costs);
 
                 }
                 else if ((abs(i - mylane) <= 1) && (car_speed*MPH2mps > 9.0)) {
                   // cout << " [*] planning trajectories to nearby lane ... " << endl;
+                  bool in_mylane = false;
                   if (planners[i].obstacle_following){
                     Vehicle target_obstacle = planners[i].target_to_follow;
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
@@ -398,7 +401,7 @@ int main() {
 
                   // LATERAL TRAJECTORY GENERATION
                   _ = lateralTrajectories(d0, d0dot, d0ddot, \
-                                          planners[i].target_d, \
+                                          planners[i].target_d, in_mylane, \
                                           planners[i].d_trajectories, planners[i].d_costs);
                 }
                 else {
@@ -432,7 +435,7 @@ int main() {
 
                   // collision check
                   // cout << " [*] checking collision " << i+1 << " ..." << endl;
-                  int max_iter = 150;
+                  int max_iter = 100;
                   int iters = -1;
                   if (max_iter >= ntraj) {max_iter = ntraj;}
                   for (int k=0; k<max_iter; k++) {
@@ -511,7 +514,7 @@ int main() {
               int opt_s = planners[opt].optimal_s_id;
               int opt_d = planners[opt].optimal_d_id;
 
-              cout << " [-] opt_s = " << opt_s << ", opt_d = " << opt_d << endl;
+              // cout << " [-] opt_s = " << opt_s << ", opt_d = " << opt_d << endl;
               optimal_s_coeff = planners[opt].s_trajectories.col(opt_s);
               optimal_d_coeff = planners[opt].d_trajectories.col(opt_d);
 
@@ -519,6 +522,7 @@ int main() {
               for (int hrz=0; hrz<n_planning_horizon + 1; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
+                if (s >= max_s) {s = s - max_s;}
                 vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
