@@ -171,7 +171,7 @@ int main() {
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             double MPH2mps = 1.0/2.23694;
-            double max_speed = 45*MPH2mps;
+            double max_speed = 44*MPH2mps;
 
             int prev_path_size = previous_path_x.size();
             step += 1;
@@ -188,7 +188,7 @@ int main() {
             // INITIALIZE PLANNER
             vector<Planner> planners;
             for (int i=0; i<3; i++) {
-              double _target_d = 2.0 + 4* i;
+              double _target_d = 2.0 + 4* i - 0.02;
               Planner planner;
               MatrixXd s_trajectories(6, 0);
               VectorXd s_costs(0);
@@ -281,8 +281,8 @@ int main() {
 
             // WAYPOINTS SMOOTHING
             int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
-            int id_interp_start = _close_way_point_id - 5;
-            int id_interp_end   = _close_way_point_id + 7;
+            int id_interp_start = _close_way_point_id - 4;
+            int id_interp_end   = _close_way_point_id + 5;
             int id_map_last = map_waypoints_x.size();
 
             // cout << "setting a range for interpolate ... " << endl;
@@ -362,7 +362,7 @@ int main() {
                   if (planners[i].obstacle_following){
                     Vehicle target_obstacle = planners[i].target_to_follow;
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
-                          target_obstacle.s, target_obstacle.speed - 0.1, max_speed, \
+                          target_obstacle.s, target_obstacle.speed - 0.2, max_speed, \
                           planners[i].s_trajectories, planners[i].s_costs);
                   }
                   _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
@@ -383,7 +383,7 @@ int main() {
                   if (planners[i].obstacle_following){
                     Vehicle target_obstacle = planners[i].target_to_follow;
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
-                          target_obstacle.s, target_obstacle.speed - 0.1, max_speed, \
+                          target_obstacle.s, target_obstacle.speed - 0.2, max_speed, \
                           planners[i].s_trajectories, planners[i].s_costs);
                   }
                   // keeping
@@ -432,7 +432,7 @@ int main() {
 
                   // collision check
                   // cout << " [*] checking collision " << i+1 << " ..." << endl;
-                  int max_iter = 100;
+                  int max_iter = 150;
                   int iters = -1;
                   if (max_iter >= ntraj) {max_iter = ntraj;}
                   for (int k=0; k<max_iter; k++) {

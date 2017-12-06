@@ -248,7 +248,7 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
   double s1dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
 
     vector<double> ds1dotset;
-    vector<double> ds1dotcand = {-15.0, -10.0, -5.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0};
+    vector<double> ds1dotcand = {-15.0, -10.0, -5.0, -3.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0};
     vector<double> Tjset = {3.0,3.5,4.0};
     double kspeed = 9.0;
 
@@ -268,7 +268,7 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
 
 int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, double s_lv0dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
   // tunning parameters : safety distance and CTG param
-  double dist_safe = 15.0;
+  double dist_safe = 10.0;
   double tau = 1.0; // constant time gap policy parameter
 
   double kspeed = 9.0;
