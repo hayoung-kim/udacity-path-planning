@@ -248,6 +248,7 @@ int main() {
             // ---------------------------------------
             // EXTRACT NEAREST VEHICLE FOR EACH LANE
             // ---------------------------------------
+            cout << "extract" << endl;
             for (int i=0; i<NearbyVehicles.size(); i++) {
               Vehicle _vehicle = NearbyVehicles[i];
               for (int j=0; j<planners.size(); j++) {
@@ -280,22 +281,50 @@ int main() {
             int _;
 
             // WAYPOINTS SMOOTHING
-            int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
+            cout << "smoothing" << endl;
+            int id_map_last = map_waypoints_x.size();
+            // !- test loop
+            int start_s = map_waypoints_s[id_map_last-5];
+            double start_x = map_waypoints_x[id_map_last-5];
+            double start_y = map_waypoints_y[id_map_last-5];
+            int _close_way_point_id = ClosestWaypoint(start_x, start_y, map_waypoints_x, map_waypoints_y);
+            if (_close_way_point_id == id_map_last) {
+              for (int jj=0; jj<10; jj++) {cout << " [!!!!] CLOSE WAY POINT ID = MAP'S LAST WAYPOINT ID" << endl;}
+            }
+            // -! test loop
+
+            // int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
+
             int id_interp_start = _close_way_point_id - 4;
             int id_interp_end   = _close_way_point_id + 7;
-            int id_map_last = map_waypoints_x.size();
 
             // cout << "setting a range for interpolate ... " << endl;
             if (id_interp_start < 0) {id_interp_start = 0;}
-            if (id_interp_end > id_map_last) {id_interp_end = id_map_last;}
-
+            // if (id_interp_end > id_map_last) {id_interp_end = id_map_last;}
+            cout << "smoothing 2" << endl;
             vector<double> map_x_to_interp, map_y_to_interp, map_s_to_interp;
             for (int map_id=id_interp_start; map_id < id_interp_end; map_id ++) {
-              map_x_to_interp.push_back(map_waypoints_x[map_id]);
-              map_y_to_interp.push_back(map_waypoints_y[map_id]);
-              map_s_to_interp.push_back(map_waypoints_s[map_id]);
-            }
+              if (map_id >= id_map_last) {
+                int _map_id = map_id - id_map_last;
+                cout << map_id << endl;
+                map_s_to_interp.push_back(map_waypoints_s[_map_id] + max_s);
+                map_x_to_interp.push_back(map_waypoints_x[_map_id]);
+                map_y_to_interp.push_back(map_waypoints_y[_map_id]);
 
+                cout << "(s,x,y) = " << map_waypoints_s[_map_id] + max_s << \
+                        ", " << map_waypoints_x[_map_id] << ", " << map_waypoints_y[_map_id] << endl;
+              }
+              else {
+                map_s_to_interp.push_back(map_waypoints_s[map_id]);
+                map_x_to_interp.push_back(map_waypoints_x[map_id]);
+                map_y_to_interp.push_back(map_waypoints_y[map_id]);
+                cout << "(s,x,y) = " << map_waypoints_s[map_id]<< \
+                        ", " << map_waypoints_x[map_id] << ", " << map_waypoints_y[map_id] << endl;
+              }
+
+
+            }
+            cout << "set spline" << endl;
             tk::spline x_given_s;
             tk::spline y_given_s;
             x_given_s.set_points(map_s_to_interp, map_x_to_interp);
@@ -305,6 +334,8 @@ int main() {
 
             vector<double> map_ss, map_xs, map_ys;
             double _s = map_s_to_interp[0];
+
+            cout << "interp" << endl;
 
             while (_s < map_s_to_interp[map_s_to_interp.size()-1]) {
               double _x = x_given_s(_s);
@@ -326,21 +357,32 @@ int main() {
             double start_time = start_index * 0.02;
 
             double s0 = getPosition(optimal_s_coeff, start_time);
+            if (s0 > max_s) { s0 = s0 - max_s;}
             double s0dot = getVelocity(optimal_s_coeff, start_time);
             double s0ddot = getAcceleration(optimal_s_coeff, start_time);
             double d0 = getPosition(optimal_d_coeff, start_time);
             double d0dot = getVelocity(optimal_d_coeff, start_time);
             double d0ddot = getAcceleration(optimal_d_coeff, start_time);
 
+            cout << "planning" << endl;
+
             if (prev_path_size == 0) {
+              cout << "hg" << endl;
               double target_s1dot = 20 * MPH2mps;
               bool in_mylane = true;
-              _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, max_speed, \
+              // _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, max_speed, \
+              //                                 planners[1].s_trajectories, planners[1].s_costs);
+              // for test loop
+              _ = VelocityKeepingTrajectories(start_s, car_speed, 0, target_s1dot, max_speed, \
                                               planners[1].s_trajectories, planners[1].s_costs);
               _ = lateralTrajectories(car_d, 0, 0, 6.0, in_mylane, planners[1].d_trajectories, planners[1].d_costs);
               vector<int> opt_idx = optimalCombination(planners[1].s_costs, planners[1].d_costs);
               optimal_s_coeff = planners[1].s_trajectories.col(opt_idx[0]);
               optimal_d_coeff = planners[1].d_trajectories.col(opt_idx[1]);
+
+              cout << "pushing current position ... " << endl;
+              next_x_vals.push_back(car_x);
+              next_y_vals.push_back(car_y);
 
               for (int hrz=0; hrz<n_planning_horizon; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
@@ -349,6 +391,9 @@ int main() {
                 vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
+
+                cout << "s=" << s << endl;
+                cout << "x=" << xy[0] << endl;
               }
             }
             else {
@@ -535,7 +580,9 @@ int main() {
               for (int hrz=0; hrz<n_planning_horizon + 1; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
-                if (s >= max_s) {s = s - max_s;}
+                if (hrz % 10 == 0){cout << " s to (x,y) = " << s << endl;}
+
+                // if (s >= max_s) {s = s - max_s;}
                 vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
