@@ -171,7 +171,7 @@ int main() {
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             double MPH2mps = 1.0/2.23694;
-            double max_speed = 45*MPH2mps;
+            double max_speed = 44*MPH2mps;
 
             int prev_path_size = previous_path_x.size();
             step += 1;
@@ -267,7 +267,7 @@ int main() {
                       planners[j].dist_to_target = from_ego_to_other;
                       planners[j].target_to_follow = _vehicle;
                     }
-                    if (from_ego_to_other <= 50) {
+                    if (from_ego_to_other <= 65) {
                       planners[j].obstacle_following = true;
                     }
                   }
@@ -312,7 +312,7 @@ int main() {
               map_ss.push_back(_s);
               map_xs.push_back(_x);
               map_ys.push_back(_y);
-              _s += 0.1;
+              _s += 0.05;
             }
 
             // TRAJECTORY PLANNING
@@ -366,10 +366,17 @@ int main() {
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
                           target_obstacle.s, target_obstacle.speed - 0.2, max_speed, \
                           planners[i].s_trajectories, planners[i].s_costs);
+
+                    _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
+                                                    target_s1dot - 10.0, max_speed, \
+                                                    planners[i].s_trajectories, planners[i].s_costs);
                   }
-                  _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
-                                                  target_s1dot, max_speed, \
-                                                  planners[i].s_trajectories, planners[i].s_costs);
+                  else {
+                    _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
+                                                    target_s1dot, max_speed, \
+                                                    planners[i].s_trajectories, planners[i].s_costs);
+                  }
+
                   // stop
                   _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
                                                   0.0, max_speed, \
@@ -388,11 +395,17 @@ int main() {
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
                           target_obstacle.s, target_obstacle.speed - 0.2, max_speed, \
                           planners[i].s_trajectories, planners[i].s_costs);
+                    _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
+                                                    target_s1dot - 10.0, max_speed, \
+                                                    planners[i].s_trajectories, planners[i].s_costs);
                   }
-                  // keeping
-                  _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
-                                                  target_s1dot, max_speed, \
-                                                  planners[i].s_trajectories, planners[i].s_costs);
+                  else {
+                    // keeping
+                    _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
+                                                    target_s1dot, max_speed, \
+                                                    planners[i].s_trajectories, planners[i].s_costs);
+                  }
+
                   // stop
                   _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
                                                   0.0, max_speed, \
