@@ -275,7 +275,7 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
 
 int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, double s_lv0dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
   // tunning parameters : safety distance and CTG param
-  double dist_safe = 10.0;
+  double dist_safe = 15.0;
   double tau = 1.0; // constant time gap policy parameter
 
   double kspeed = 9.0;

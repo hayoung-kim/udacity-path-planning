@@ -262,7 +262,7 @@ int main() {
                   }
                   else {planners[j].obstacles.push_back(_vehicle);}
 
-                  if (from_ego_to_other >= 0){
+                  if (from_ego_to_other >= -2.0){
                     if (from_ego_to_other < planners[j].dist_to_target) {
                       planners[j].dist_to_target = from_ego_to_other;
                       planners[j].target_to_follow = _vehicle;
@@ -282,7 +282,7 @@ int main() {
             // WAYPOINTS SMOOTHING
             int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
             int id_interp_start = _close_way_point_id - 4;
-            int id_interp_end   = _close_way_point_id + 5;
+            int id_interp_end   = _close_way_point_id + 7;
             int id_map_last = map_waypoints_x.size();
 
             // cout << "setting a range for interpolate ... " << endl;
@@ -368,7 +368,7 @@ int main() {
                           planners[i].s_trajectories, planners[i].s_costs);
 
                     _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
-                                                    target_s1dot - 10.0, max_speed, \
+                                                    target_obstacle.speed, max_speed, \
                                                     planners[i].s_trajectories, planners[i].s_costs);
                   }
                   else {
