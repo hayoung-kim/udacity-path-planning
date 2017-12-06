@@ -248,7 +248,7 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
   double s1dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
 
     vector<double> ds1dotset;
-    vector<double> ds1dotcand = {-15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0};
+    vector<double> ds1dotcand = {-15.0, -10.0, -5.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0};
     vector<double> Tjset = {3.0,3.5,4.0};
     double kspeed = 9.0;
 

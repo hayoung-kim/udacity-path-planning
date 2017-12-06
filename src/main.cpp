@@ -49,6 +49,7 @@ typedef struct Planner {
   int optimal_s_id;
   int optimal_d_id;
   double minimal_cost;
+  int iters;
 } Planner;
 
 int getMyLane(double d0) {
@@ -193,6 +194,7 @@ int main() {
               VectorXd s_costs(0);
               MatrixXd d_trajectories(6, 0);
               VectorXd d_costs(0);
+
               planner.s_trajectories = s_trajectories;
               planner.s_costs = s_costs;
               planner.d_trajectories = d_trajectories;
@@ -201,9 +203,10 @@ int main() {
               planner.dist_to_target = 999.9;
               planner.obstacle_following = false;
               planner.feasible_traj_exist = true;
-              planner.minimal_cost = 9999.9;
+              planner.minimal_cost = 9999999.9;
               planner.optimal_s_id = 0;
               planner.optimal_d_id = 0;
+              planner.iters = -1;
               planners.push_back(planner);
             }
 
@@ -237,10 +240,10 @@ int main() {
             }
 
 
-            cout << " [-] NearbyVehicles = " << NearbyVehicles.size() << endl;
+
             int mylane = getMyLane(car_d);
 
-            cout << " [-] mylane = " << mylane << endl;
+
 
             // ---------------------------------------
             // EXTRACT NEAREST VEHICLE FOR EACH LANE
@@ -355,7 +358,7 @@ int main() {
               for (int i=0; i<3; i++) {
                 // LONGITUDINAL TRAJECTORY GENERATION
                 if (i == mylane) {
-                  cout << " [*] planning trajecotries to my lane ..." << endl;
+                  // cout << " [*] planning trajecotries to my lane ..." << endl;
                   if (planners[i].obstacle_following){
                     Vehicle target_obstacle = planners[i].target_to_follow;
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
@@ -376,7 +379,7 @@ int main() {
 
                 }
                 else if ((abs(i - mylane) <= 1) && (car_speed*MPH2mps > 9.0)) {
-                  cout << " [*] planning trajectories to nearby lane ... " << endl;
+                  // cout << " [*] planning trajectories to nearby lane ... " << endl;
                   if (planners[i].obstacle_following){
                     Vehicle target_obstacle = planners[i].target_to_follow;
                     _ = FollowingTrajectories(s0, s0dot, s0ddot, \
@@ -400,6 +403,7 @@ int main() {
                 }
                 else {
                   planners[i].feasible_traj_exist = false;
+                  cout << " [*] infeasible because this lane is not adjacent to my lane (" << i << ")" << endl;
                 }
 
                 // OPTIMAL TRAJECTORY SELECTION
@@ -412,10 +416,11 @@ int main() {
                 // build cost matrix
                 if (ntraj == 0) {
                   planners[i].feasible_traj_exist = false;
+                  cout << " [*] infeasible due to ntraj = 0 (" << i << ")" << endl;
                 }
                 else {
                   MatrixXd sd_costs(ns, nd);
-                  cout << " [*] build cost matrix " << i+1 << " ..." << endl;
+                  cout << " [*] build cost matrix " << i << " ..." << endl;
                   for (int ss=0; ss<ns; ss++){
                     for (int dd=0; dd<nd; dd++){
                       sd_costs(ss,dd) = klon * planners[i].s_costs[ss] \
@@ -429,7 +434,7 @@ int main() {
                   // cout << " [*] checking collision " << i+1 << " ..." << endl;
                   int max_iter = 100;
                   int iters = -1;
-                  if (max_iter <= ntraj) {max_iter = ntraj;}
+                  if (max_iter >= ntraj) {max_iter = ntraj;}
                   for (int k=0; k<max_iter; k++) {
                     // cout << " [*] iters " << k << endl;
                     bool crash_predicted = false;
@@ -454,9 +459,9 @@ int main() {
                         int crash = checkCollision(_s, _d, 0, _s_other, _d_other, 0.0);
                         if (crash == 1) {crash_predicted = true; break;}
                       }
-                      if (crash_predicted) {sd_costs(min_s_idx, min_d_idx) = 9999.9; break;}
+                      if (crash_predicted) {sd_costs(min_s_idx, min_d_idx) = 9999999.9; break;}
                     }
-
+                    iters = k;
                     if (!crash_predicted) {
                       // cout << " [*] LANE " << i+1 << " is FREE!" << endl;
                       planners[i].optimal_s_id = min_s_idx;
@@ -464,17 +469,19 @@ int main() {
                       planners[i].minimal_cost = sd_costs(min_s_idx, min_d_idx);
                       break;
                     }
-                    iters = k;
+
                   }
+                  planners[i].iters = iters;
                   if (iters == max_iter-1) {
                     planners[i].feasible_traj_exist = false;
+                    cout << " [*] infeasible due to iters == max_iter-1 (" << i << ")" << endl;
                   }
                 }
               }
 
               // FIND OPTIMAL ONE
               // cout << " [*] finding optimal lane ..." << endl;
-              double minimal_cost = 9999.9;
+              double minimal_cost = 9999999.9;
               int opt = 1;
               for (int i=0; i<3; i++) {
 
@@ -486,6 +493,9 @@ int main() {
                 }
 
               }
+
+              cout << " [-] NearbyVehicles = " << NearbyVehicles.size() << endl;
+              cout << " [-] mylane = " << mylane << endl;
               cout << " [-] obstacles : " << planners[0].obstacles.size() << ", " << \
                       planners[1].obstacles.size() << ", " << planners[2].obstacles.size() << endl;
               cout << " [-] feasible : " << planners[0].feasible_traj_exist << ", " << \
@@ -494,6 +504,8 @@ int main() {
                       planners[1].obstacle_following << ", " << planners[2].obstacle_following << endl;
               cout << " [-] cost : " << planners[0].minimal_cost << ", " << \
                       planners[1].minimal_cost << ", " << planners[2].minimal_cost << endl;
+              cout << " [-] iters : " << planners[0].iters << ", " << \
+                      planners[1].iters << ", " << planners[2].iters << endl;
               cout << " [-] optimal lane: " << opt << endl;
 
               int opt_s = planners[opt].optimal_s_id;
