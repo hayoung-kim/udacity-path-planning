@@ -126,8 +126,12 @@ int main() {
   double d_cost = 999;
   int step = 0;
 
+  // double s_offset = 0;
+
+  int minus_max_s = 0;
+
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx\
-    ,&map_waypoints_dy, &optimal_s_coeff, &optimal_d_coeff, &step, &max_s](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+    ,&map_waypoints_dy, &optimal_s_coeff, &optimal_d_coeff, &step, &max_s, &minus_max_s](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -174,8 +178,9 @@ int main() {
             double pos_yaw;
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+
             double MPH2mps = 1.0/2.23694;
-            double max_speed = 44*MPH2mps;
+            double max_speed = 45*MPH2mps;
 
             int prev_path_size = previous_path_x.size();
             int max_s_waypoint = map_waypoints_s[map_waypoints_s.size()-1];
@@ -187,15 +192,104 @@ int main() {
             // // cout << "optimal_s_coeff: \n" << optimal_s_coeff << endl;
             // cout << " [-] prev_path_size: " << prev_path_size << endl;
             //
-            // cout << " [-] car_s: " << car_s << endl;
-            // cout << " [-] car_d: " << car_d << endl;
+            cout << " [-] car_s, car_d =  " << car_s << ", " << car_d << endl;
+            // cout << " [-] car_x, car_y =  " << car_x << ", " << car_y << endl;
             // cout << " [-] speed: " << car_speed << " (MPH)" << endl;
             cout << " [-] speed: " << car_speed*MPH2mps << " (m/s)" << endl;
+
+            // WAYPOINTS SMOOTHING
+            // cout << "smoothing" << endl;
+            int id_map_last = map_waypoints_x.size() - 1;
+            // !- test loop
+            int _close_way_point_id;
+            double start_s;
+            if (step < 20){
+              start_s = map_waypoints_s[id_map_last-3];
+              double start_x = map_waypoints_x[id_map_last-3];
+              double start_y = map_waypoints_y[id_map_last-3];
+
+              _close_way_point_id = ClosestWaypoint(start_x, start_y, map_waypoints_x, map_waypoints_y);
+              if (_close_way_point_id == id_map_last) {
+                for (int jj=0; jj<10; jj++) {cout << " [!!!!] CLOSE WAY POINT ID = MAP'S LAST WAYPOINT ID" << endl;}
+              }
+            }
+            else {
+              _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
+            }
+
+            // -! test loop
+
+            // int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
+
+            int id_interp_start = _close_way_point_id - 4;
+            int id_interp_end   = _close_way_point_id + 7;
+
+            // double prev_s_offset = s_offset;
+            // s_offset = map_waypoints_s[_close_way_point_id];
+
+            // cout << "setting a range for interpolate ... " << endl;
+            // cout << "smoothing 2" << endl;
+            vector<double> map_x_to_interp, map_y_to_interp, map_s_to_interp;
+            double _map_s, _map_x, _map_y;
+            // cout << " [-] closest waypoint = " << _close_way_point_id << endl;
+            // if (_close_way_point_id == 0) {minus_max_s += 1;}
+            // if (id_interp_start == id_map_last - 3) {minus_max_s = 1;}
+            for (int map_id=id_interp_start; map_id < id_interp_end; map_id ++) {
+              if (map_id > id_map_last) {
+                int _map_id = map_id - id_map_last - 1;
+                // cout << " [***] map_id > id_map_last, " << _map_id << endl;
+                _map_s = map_waypoints_s[_map_id] + max_s;
+                _map_x = map_waypoints_x[_map_id];
+                _map_y = map_waypoints_y[_map_id];
+
+
+              }
+              else if (map_id < 0) {
+                int _map_id = id_map_last + map_id + 1;
+                // cout << " [***] map_id < 0, " << _map_id << endl;
+                _map_s = map_waypoints_s[_map_id] - max_s;
+                _map_x = map_waypoints_x[_map_id];
+                _map_y = map_waypoints_y[_map_id];
+
+              }
+              else {
+                // cout << " [***] else, " << map_id << endl;
+                _map_s = map_waypoints_s[map_id];
+                _map_x = map_waypoints_x[map_id];
+                _map_y = map_waypoints_y[map_id];
+              }
+              // _map_s -= s_offset;
+              map_s_to_interp.push_back(_map_s);
+              map_x_to_interp.push_back(_map_x);
+              map_y_to_interp.push_back(_map_y);
+              // cout << "(s,x,y) = " << _map_s << ", " << _map_x << ", " << _map_y << endl;
+            }
+            // cout << "set spline" << endl;
+            tk::spline x_given_s;
+            tk::spline y_given_s;
+            x_given_s.set_points(map_s_to_interp, map_x_to_interp);
+            y_given_s.set_points(map_s_to_interp, map_y_to_interp);
+
+            // cout << "interpolating starts...." << endl;
+
+            vector<double> map_ss, map_xs, map_ys;
+            double _s = map_s_to_interp[0];
+
+            // cout << "interp" << endl;
+
+            while (_s < map_s_to_interp[map_s_to_interp.size()-1]) {
+              double _x = x_given_s(_s);
+              double _y = y_given_s(_s);
+              map_ss.push_back(_s);
+              map_xs.push_back(_x);
+              map_ys.push_back(_y);
+              _s += 0.05;
+            }
 
             // INITIALIZE PLANNER
             vector<Planner> planners;
             for (int i=0; i<3; i++) {
-              double _target_d = 2.0 + 4* i - 0.02;
+              double _target_d = 2.0 + 4* i;
               Planner planner;
               MatrixXd s_trajectories(6, 0);
               VectorXd s_costs(0);
@@ -248,18 +342,21 @@ int main() {
 
             int n_planning_horizon = 150;
             int n_pass = n_planning_horizon - prev_path_size;
+            // int start_index = n_pass - 1;
             int start_index = n_pass - 1;
             double start_time = start_index * 0.02;
 
             double s0 = getPosition(optimal_s_coeff, start_time);
-            if (s0 > max_s) {s0 = s0 - max_s; cout << "s0 = " << s0 << endl;}
+            if (s0 > max_s) {s0 = s0 - max_s;}
+            // if (s0 > map_waypoints_s[map_waypoints_s.size()-1]) {s0 = s0 - max_s; cout << " [!!!!!] s0 = " << s0 << endl;}
+
             double s0dot = getVelocity(optimal_s_coeff, start_time);
             double s0ddot = getAcceleration(optimal_s_coeff, start_time);
             double d0 = getPosition(optimal_d_coeff, start_time);
             double d0dot = getVelocity(optimal_d_coeff, start_time);
             double d0ddot = getAcceleration(optimal_d_coeff, start_time);
 
-            cout << " [!!] s0, d0 = " << s0 << ", " << d0 << endl;
+            // cout << " [!!] s_offset = " << s_offset << endl;
             int mylane;
             // if (prev_path_size == 0) {mylane = getMyLane(car_d);}
             // else {mylane = getMyLane(d0);}
@@ -270,7 +367,6 @@ int main() {
             // ---------------------------------------
             // EXTRACT NEAREST VEHICLE FOR EACH LANE
             // ---------------------------------------
-            cout << "extract" << endl;
             for (int i=0; i<NearbyVehicles.size(); i++) {
               Vehicle _vehicle = NearbyVehicles[i];
               for (int j=0; j<planners.size(); j++) {
@@ -302,119 +398,6 @@ int main() {
 
             int _;
 
-            // WAYPOINTS SMOOTHING
-            cout << "smoothing" << endl;
-            int id_map_last = map_waypoints_x.size() - 1;
-            // !- test loop
-            int _close_way_point_id;
-            double start_s;
-            if (step < 20){
-              start_s = map_waypoints_s[id_map_last-3];
-              double start_x = map_waypoints_x[id_map_last-3];
-              double start_y = map_waypoints_y[id_map_last-3];
-
-              _close_way_point_id = ClosestWaypoint(start_x, start_y, map_waypoints_x, map_waypoints_y);
-              if (_close_way_point_id == id_map_last) {
-                for (int jj=0; jj<10; jj++) {cout << " [!!!!] CLOSE WAY POINT ID = MAP'S LAST WAYPOINT ID" << endl;}
-              }
-            }
-            else {
-              _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
-            }
-
-            // -! test loop
-
-            // int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
-
-            int id_interp_start = _close_way_point_id - 4;
-            int id_interp_end   = _close_way_point_id + 7;
-
-            // cout << "setting a range for interpolate ... " << endl;
-            // if (id_interp_start < 0) {id_interp_start = 0;}
-            // if (id_interp_end > id_map_last) {id_interp_end = id_map_last;}
-            cout << "smoothing 2" << endl;
-            vector<double> map_x_to_interp, map_y_to_interp, map_s_to_interp;
-            for (int map_id=id_interp_start; map_id < id_interp_end; map_id ++) {
-
-              if (map_id == _close_way_point_id) {
-                cout << " nearest way point ! " << endl;
-              }
-
-              if (map_id == id_map_last) {
-                cout << " last point ! " << endl;
-              }
-
-              if (map_id > id_map_last) {
-                int _map_id = map_id - id_map_last;
-                cout << map_id << endl;
-                map_s_to_interp.push_back(map_waypoints_s[_map_id] + max_s);
-                map_x_to_interp.push_back(map_waypoints_x[_map_id]);
-                map_y_to_interp.push_back(map_waypoints_y[_map_id]);
-
-                cout << "(s,x,y) = " << map_waypoints_s[_map_id] + max_s << \
-                        ", " << map_waypoints_x[_map_id] << ", " << map_waypoints_y[_map_id] << endl;
-              }
-              else if (map_id < 0) {
-                int _map_id = id_map_last + map_id + 1;
-                cout << map_id << endl;
-                map_s_to_interp.push_back(map_waypoints_s[_map_id] - max_s);
-                map_x_to_interp.push_back(map_waypoints_x[_map_id]);
-                map_y_to_interp.push_back(map_waypoints_y[_map_id]);
-              }
-              else {
-                map_s_to_interp.push_back(map_waypoints_s[map_id]);
-                map_x_to_interp.push_back(map_waypoints_x[map_id]);
-                map_y_to_interp.push_back(map_waypoints_y[map_id]);
-                cout << "(s,x,y) = " << map_waypoints_s[map_id]<< \
-                        ", " << map_waypoints_x[map_id] << ", " << map_waypoints_y[map_id] << endl;
-              }
-
-
-            }
-            cout << "set spline" << endl;
-            tk::spline x_given_s;
-            tk::spline y_given_s;
-            x_given_s.set_points(map_s_to_interp, map_x_to_interp);
-            y_given_s.set_points(map_s_to_interp, map_y_to_interp);
-
-            // cout << "interpolating starts...." << endl;
-
-            vector<double> map_ss, map_xs, map_ys;
-            double _s = map_s_to_interp[0];
-
-            cout << "interp" << endl;
-
-            while (_s < map_s_to_interp[map_s_to_interp.size()-1]) {
-              double _x = x_given_s(_s);
-              double _y = y_given_s(_s);
-              map_ss.push_back(_s);
-              map_xs.push_back(_x);
-              map_ys.push_back(_y);
-              _s += 0.05;
-            }
-
-            // TRAJECTORY PLANNING
-
-            // SET INITIAL s0, d0 and their derivatives
-            // prev_path_size : number of left over of previous planned trajectory
-            // n_planning_horizon : n_use_previous_path + n_newly_planned_path
-
-            // int n_pass = n_planning_horizon - prev_path_size;
-            // int start_index = n_pass - 1;
-            // double start_time = start_index * 0.02;
-            //
-            // double s0 = getPosition(optimal_s_coeff, start_time);
-            // if (s0 > max_s) {s0 = s0 - max_s; cout << "s0 = " << s0 << endl;}
-            // double s0dot = getVelocity(optimal_s_coeff, start_time);
-            // double s0ddot = getAcceleration(optimal_s_coeff, start_time);
-            // double d0 = getPosition(optimal_d_coeff, start_time);
-            // double d0dot = getVelocity(optimal_d_coeff, start_time);
-            // double d0ddot = getAcceleration(optimal_d_coeff, start_time);
-            //
-            // cout << " [!!] s0, d0 = " << s0 << ", " << d0 << endl;
-
-            cout << "planning" << endl;
-
             if (prev_path_size == 0) {
               double target_s1dot = 20 * MPH2mps;
               bool in_mylane = true;
@@ -428,7 +411,7 @@ int main() {
               optimal_s_coeff = planners[1].s_trajectories.col(opt_idx[0]);
               optimal_d_coeff = planners[1].d_trajectories.col(opt_idx[1]);
 
-              cout << "pushing current position ... " << endl;
+              // cout << "pushing current position ... " << endl;
               next_x_vals.push_back(car_x);
               next_y_vals.push_back(car_y);
 
@@ -440,8 +423,8 @@ int main() {
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
 
-                cout << "s=" << s << endl;
-                cout << "x=" << xy[0] << endl;
+                // cout << "s=" << s << endl;
+                // cout << "x=" << xy[0] << endl;
               }
             }
             else {
@@ -461,7 +444,7 @@ int main() {
                           planners[i].s_trajectories, planners[i].s_costs);
 
                     _ = VelocityKeepingTrajectories(s0, s0dot, s0ddot, \
-                                                    target_obstacle.speed, max_speed, \
+                                                    target_obstacle.speed - 10.0, max_speed, \
                                                     planners[i].s_trajectories, planners[i].s_costs);
                   }
                   else {
@@ -630,6 +613,7 @@ int main() {
               optimal_d_coeff = planners[opt].d_trajectories.col(opt_d);
 
               // RUN!!
+
               for (int hrz=0; hrz<n_planning_horizon + 1; hrz++) {
                 double s = getPosition(optimal_s_coeff, hrz*0.02);
                 double d = getPosition(optimal_d_coeff, hrz*0.02);
@@ -640,21 +624,26 @@ int main() {
                 //   s = s + max_s;
                 // }
                 if (s > map_s_to_interp[map_s_to_interp.size()-1]) {
+                  // cout << " if 1 " << endl;
+                  // minus_max_s = 1;
                   s = s - max_s;
+
                 }
-                else if ( s < map_s_to_interp[0]) {
+                else if (s < map_s_to_interp[0]) {
+                  // cout << " elif " << endl;
+
                   s = s + max_s;
                 }
 
-
-
-
+                // if (hrz == 0) {cout << " [-] hrz=0, s=" << s << endl;}
                 vector<double> xy = getXY(s, d, map_ss, map_xs, map_ys);
                 next_x_vals.push_back(xy[0]);
                 next_y_vals.push_back(xy[1]);
-                if (hrz % 10 == 0){cout << " s to (x,y) = " << s << ", " <<  xy[0] << ", " << xy[1]<< endl;}
+                // if (hrz % 20 == 0){cout << " (s,d) to (x,y) = (" << s << ", " << d << "), (" <<  xy[0] << ", " << xy[1] << ")"<< endl;}
               }
             }
+
+            if (minus_max_s == 2) {return 0;}
 
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
@@ -665,6 +654,7 @@ int main() {
 
           	//this_thread::sleep_for(chrono::milliseconds(1000));
           	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+
 
         }
       } else {
