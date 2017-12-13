@@ -200,26 +200,7 @@ int main() {
             // WAYPOINTS SMOOTHING
             // cout << "smoothing" << endl;
             int id_map_last = map_waypoints_x.size() - 1;
-            // !- test loop
-            int _close_way_point_id;
-            double start_s;
-            if (step < 20){
-              start_s = map_waypoints_s[id_map_last-3];
-              double start_x = map_waypoints_x[id_map_last-3];
-              double start_y = map_waypoints_y[id_map_last-3];
-
-              _close_way_point_id = ClosestWaypoint(start_x, start_y, map_waypoints_x, map_waypoints_y);
-              if (_close_way_point_id == id_map_last) {
-                for (int jj=0; jj<10; jj++) {cout << " [!!!!] CLOSE WAY POINT ID = MAP'S LAST WAYPOINT ID" << endl;}
-              }
-            }
-            else {
-              _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
-            }
-
-            // -! test loop
-
-            // int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
+            int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
 
             int id_interp_start = _close_way_point_id - 4;
             int id_interp_end   = _close_way_point_id + 7;
@@ -381,7 +362,7 @@ int main() {
                   }
                   else {planners[j].obstacles.push_back(_vehicle);}
 
-                  if (from_ego_to_other >= -2.0){
+                  if (from_ego_to_other >= -3.0){
                     if (from_ego_to_other < planners[j].dist_to_target) {
                       planners[j].dist_to_target = from_ego_to_other;
                       planners[j].target_to_follow = _vehicle;
@@ -404,7 +385,7 @@ int main() {
               // _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, max_speed, \
               //                                 planners[1].s_trajectories, planners[1].s_costs);
               // for test loop
-              _ = VelocityKeepingTrajectories(start_s, car_speed, 0, target_s1dot, max_speed, \
+              _ = VelocityKeepingTrajectories(car_s, car_speed, 0, target_s1dot, max_speed, \
                                               planners[1].s_trajectories, planners[1].s_costs);
               _ = lateralTrajectories(car_d, 0, 0, 6.0, in_mylane, planners[1].d_trajectories, planners[1].d_costs);
               vector<int> opt_idx = optimalCombination(planners[1].s_costs, planners[1].d_costs);
