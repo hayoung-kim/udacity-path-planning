@@ -180,7 +180,7 @@ int main() {
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 
             double MPH2mps = 1.0/2.23694;
-            double max_speed = 45*MPH2mps;
+            double max_speed = 43*MPH2mps;
 
             int prev_path_size = previous_path_x.size();
             int max_s_waypoint = map_waypoints_s[map_waypoints_s.size()-1];
@@ -202,8 +202,8 @@ int main() {
             int id_map_last = map_waypoints_x.size() - 1;
             int _close_way_point_id = ClosestWaypoint(car_x, car_y, map_waypoints_x, map_waypoints_y);
 
-            int id_interp_start = _close_way_point_id - 4;
-            int id_interp_end   = _close_way_point_id + 7;
+            int id_interp_start = _close_way_point_id - 5;
+            int id_interp_end   = _close_way_point_id + 8;
 
             // double prev_s_offset = s_offset;
             // s_offset = map_waypoints_s[_close_way_point_id];
@@ -264,13 +264,13 @@ int main() {
               map_ss.push_back(_s);
               map_xs.push_back(_x);
               map_ys.push_back(_y);
-              _s += 0.05;
+              _s += 0.1;
             }
 
             // INITIALIZE PLANNER
             vector<Planner> planners;
             for (int i=0; i<3; i++) {
-              double _target_d = 2.0 + 4* i;
+              double _target_d = 2.0 + 4* i - 0.15;
               Planner planner;
               MatrixXd s_trajectories(6, 0);
               VectorXd s_costs(0);
@@ -362,7 +362,7 @@ int main() {
                   }
                   else {planners[j].obstacles.push_back(_vehicle);}
 
-                  if (from_ego_to_other >= -3.0){
+                  if (from_ego_to_other >= -1.0){
                     if (from_ego_to_other < planners[j].dist_to_target) {
                       planners[j].dist_to_target = from_ego_to_other;
                       planners[j].target_to_follow = _vehicle;
@@ -481,7 +481,7 @@ int main() {
 
                 // OPTIMAL TRAJECTORY SELECTION
                 double klon = 1.0;
-                double klat = 0.5;
+                double klat = 1.8;
                 int ns = planners[i].s_costs.size();
                 int nd = planners[i].d_costs.size();
                 int ntraj = ns * nd;
@@ -505,7 +505,7 @@ int main() {
 
                   // collision check
                   // cout << " [*] checking collision " << i+1 << " ..." << endl;
-                  int max_iter = 100;
+                  int max_iter = 200;
                   int iters = -1;
                   if (max_iter >= ntraj) {max_iter = ntraj;}
                   for (int k=0; k<max_iter; k++) {
@@ -517,6 +517,7 @@ int main() {
                     optimal_d_coeff = planners[i].d_trajectories.col(min_d_idx);
 
                     for (int t=0; t<n_planning_horizon; t++) {
+
                       // my position
                       double _s = getPosition(optimal_s_coeff, t*0.02);
                       double _d = getPosition(optimal_d_coeff, t*0.02);
@@ -527,7 +528,7 @@ int main() {
                       // other car's position
                       for (int n=0; n<planners[i].obstacles.size(); n++) {
                         Vehicle other_car = planners[i].obstacles[n];
-                        double _s_other = other_car.s + t * 0.02 * (other_car.speed - 0.2);
+                        double _s_other = other_car.s + t * 0.02 * (other_car.speed - 0.1);
                         double _d_other = other_car.d;
                         int crash = checkCollision(_s, _d, 0, _s_other, _d_other, 0.0);
                         if (crash == 1) {crash_predicted = true; break;}
@@ -601,9 +602,6 @@ int main() {
 
 
                 // loop solution
-                // if ((s < map_s_to_interp[0]) && (map_s_to_interp[map_s_to_interp.size()-1] >= max_s)) {
-                //   s = s + max_s;
-                // }
                 if (s > map_s_to_interp[map_s_to_interp.size()-1]) {
                   // cout << " if 1 " << endl;
                   // minus_max_s = 1;

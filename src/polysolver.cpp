@@ -248,10 +248,10 @@ int VelocityKeepingTrajectories(double s0, double s0dot, double s0ddot, \
   double s1dot, double max_speed, MatrixXd &s_trajectories, VectorXd &s_costs) {
 
     vector<double> ds1dotset;
-    vector<double> ds1dotcand = {-5.0, -3.0, -2.0, -1.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0};
+    vector<double> ds1dotcand = {-3.0, -2.0, -1.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
     vector<double> Tjset = {3.0,3.5,4.0};
     double kspeed = 9.0;
-    double acc_thres = 3.3;
+    double acc_thres = 3.5;
 
     for (int i=0; i<ds1dotcand.size(); i++){
       double _ds1dot = ds1dotcand[i];
@@ -315,17 +315,20 @@ int FollowingTrajectories(double s0, double s0dot, double s0ddot, double s_lv0, 
 int lateralTrajectories(double d0, double d0dot, double d0ddot, \
   double d1, bool in_mylane, MatrixXd &d_trajectories, VectorXd &d_costs) {
     vector<double> dd1set;
+    vector<double> Tjset;
     if (in_mylane) {
-      dd1set = {0};
+      dd1set = {-0.6, 0, 0.6};
+      Tjset = {3.5, 3.7};
     }
     else {
-      dd1set = {-1, -0.5, 0, 0.5, 1};
+      dd1set = {-1.2, -0.6, 0, 0.6, 1.2};
+      Tjset = {3.2, 3.5, 3.7};
     }
-    vector<double> Tjset = {3.0, 3.2, 3.5, 3.7};
+
     double max_speed = 15.0;
     double kspeed = 0.0;
     double ks = 2.0;
-    double acc_thres = 4.5;
+    double acc_thres = 4;
 
     int _ = solvePolynomialsFullTerminalCond(d0, d0dot, d0ddot, d1, 0, 0, \
                                              kspeed, ks, max_speed, acc_thres,\
