@@ -1,143 +1,135 @@
-# udacity-path-planning
-Udacity self-driving car nanodegree term3 path planning project
 
-# references
-- Separating Axis Theorem [`link`](http://www.dyn4j.org/2010/01/sat/)
-- "Optimal Trajectory Generation for Dynamic Street Scenarios in a Frenet Frame", ICRA 2010 [`link`](https://d17h27t6h515a5.cloudfront.net/topher/2017/July/595fd482_werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame/werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame.pdf)
 
-### Simulator.
-You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
+## Path Planning Project - Udacity CarND
 
-### Goals
-In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 50 m/s^3.
+[![Udacity - Self-Driving Car NanoDegree](https://camo.githubusercontent.com/5b9aa393f43d7bb9cc6277140465f5625f2dae7c/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f756461636974792d7364632f6769746875622f736869656c642d6361726e642e737667)](http://www.udacity.com/drive) 
 
-#### The map of the highway is in data/highway_map.txt
-Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
+[TOC]
 
-The highway's waypoints loop around so the frenet s value, distance along the road, goes from 0 to 6945.554.
+### Introduction
 
-## Basic Build Instructions
+In this project, the goal is to design a path planner that is able to create smooth, safe paths for the car to follow along a three lane highway with traffic. A successful path planner will be able to keep inside its lane, avoid hitting other cars, and pass slower moving traffic all by using localization, sensor fusion, and map data. At the same time, the car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.
+
+To satisfy these objectvies, the structure of this path planning algorithm is following 5 steps:
+
+1. Interpolating sparse map waypoints
+2. Initializing planners
+3. Assigning nearby obstacles information into each planner
+4. Jerk-minimizing trajectory generation
+5. Selecting optimal trajectory
+
+
+
+
+### Quantitative results
+
+
+
+
+
+### Usage
+
+Check dependencies @ [original udacity-path-planning repository](https://github.com/udacity/CarND-Path-Planning-Project)
 
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./path_planning`.
 
-Here is the data provided from the Simulator to the C++ Program
-
-#### Main car's localization Data (No Noise)
-
-["x"] The car's x position in map coordinates
-
-["y"] The car's y position in map coordinates
-
-["s"] The car's s position in frenet coordinates
-
-["d"] The car's d position in frenet coordinates
-
-["yaw"] The car's yaw angle in the map
-
-["speed"] The car's speed in MPH
-
-#### Previous path data given to the Planner
-
-//Note: Return the previous list but with processed points removed, can be a nice tool to show how far along
-the path has processed since last time.
-
-["previous_path_x"] The previous list of x points previously given to the simulator
-
-["previous_path_y"] The previous list of y points previously given to the simulator
-
-#### Previous path's end s and d values
-
-["end_path_s"] The previous list's last point's frenet s value
-
-["end_path_d"] The previous list's last point's frenet d value
-
-#### Sensor Fusion Data, a list of all other car's attributes on the same side of the road. (No Noise)
-
-["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates.
-
-## Details
-
-1. The car uses a perfect controller and will visit every (x,y) point it recieves in the list every .02 seconds. The units for the (x,y) points are in meters and the spacing of the points determines the speed of the car. The vector going from a point to the next point in the list dictates the angle of the car. Acceleration both in the tangential and normal directions is measured along with the jerk, the rate of change of total Acceleration. The (x,y) point paths that the planner recieves should not have a total acceleration that goes over 10 m/s^2, also the jerk should not go over 50 m/s^3. (NOTE: As this is BETA, these requirements might change. Also currently jerk is over a .02 second interval, it would probably be better to average total acceleration over 1 second and measure jerk from that.
-
-2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
-
-## Tips
-
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
-
----
-
-## Dependencies
-
-* cmake >= 3.5
- * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets)
-  * Run either `install-mac.sh` or `install-ubuntu.sh`.
-  * If you install from source, checkout to commit `e94b6e1`, i.e.
-    ```
-    git clone https://github.com/uWebSockets/uWebSockets
-    cd uWebSockets
-    git checkout e94b6e1
-    ```
-
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
 
 
-## Call for IDE Profiles Pull Requests
 
-Help your fellow students!
+## Implementation Details
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
+### Interpolating sparse map waypoints
 
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
+A given map is recorded at approximately 30m intervals, so you can not obtain smooth tractory by directly using `getXY` function. Therefore, nearby waypoints are interpolated using `spline` function which can create coarse waypoints with 0.1m interval. By doing this we can get more smooth trajectory in global (x,y) coordinates when mapping trajectory in Frenet frame into trajectory in global coordinate.
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
 
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
 
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
+### Initializing planners
 
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+Driving can be very simple on highway unlike driving in urban situation. If you determine which lanes to drive along, you will be able to drive almost the best performance. We leveraged this this thinking. As allocating the planners one for each lane, and each planner creates the best trapectory in each lane. So there are three lanes in this project, and there's a total of three local planners. Each planner contains the following elements :
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+```
+typedef struct Planner {
+  double target_d; // target d in Frenet coordinate
+  vector<Vehicle> obstacles; // obstacles on this lane
+  Vehicle target_to_follow; // target vehicle to follow
+  int following_target_id; // id of target vehicle to follow
+  double dist_to_target; // distance to target vehicle
+  MatrixXd s_trajectories; // generated s-trajectories in Frenet
+  VectorXd s_costs; // corresponding s-cost for each trajectory
+  MatrixXd d_trajectories; // generated d-trajectories in Frenet
+  VectorXd d_costs; // corresponding d-cost for each trajectory
+  bool obstacle_following; // if false: velocity keeping
+  bool feasible_traj_exist; // if false: no feasible trajectory
+  int optimal_s_id; // s-trajectory id with minimal s-costs
+  int optimal_d_id; // d-trajectory id with minimal d-costs
+  double minimal_cost; // total minimal cost 
+  int iters; // how many iterations run to check collision-free trajectory
+} Planner;
+```
+
+
+
+### Assigning nearby obstacles information into each planner
+
+The position and velocity information of the nearby vehicles from the `sensor_fusion` is transmitted to each planner. If the obstacle is currently ahead of the vehicle's position `car_s`, the planner will enter the `obstacle_following` mode to follow the ahead vehicle. In contrast, the `velocity_keeping` mode will operate if there is no obstacle ahead.
+
+
+
+### Jerk-minimizing trajectory generation
+
+In the trajectory generation phase, following trajectory and velocity keeping trajectory are generated without considering collision. We have created **5th order polynomial** trajectories that can minimize jerk on the Frenet frame independently for s and d. we considered three type of cost: 
+
+1. Jerk (the smaller is the better)
+2. Terminal state (the safe distance to ahead vehicle in s-direction and cross track error in d-direction)
+3. Speed (the closer to `max_speed` is the better)
+
+After this process, we designed the *jerk to be smaller* and *the speed to be closer to `max_speed`* to have a smaller cost. Especially,  [Huber Loss](https://en.wikipedia.org/wiki/Huber_loss) is used for the cost to speed up the speed up to` max_speed`. Finally, the total cost is calculated taking into account the longitudinal and lateral sensitivity represented as `klon` and `klat`.
+
+```c++
+sd_cost(ss,dd) = klon * planners[i].s_cost[ss] + klat * planners[i].d_cost[dd];
+```
+
+For more information on trajectory generation, see *"Optimal Trajectory Generation for Dynamic Street Scenarios in a Frenet Frame",* M. Werling, J. Ziegler, S. Kammel and S. Thrun, ICRA 2010: [Link](https://d17h27t6h515a5.cloudfront.net/topher/2017/July/595fd482_werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame/werling-optimal-trajectory-generation-for-dynamic-street-scenarios-in-a-frenet-frame.pdf)
+
+
+
+### Selecting optimal trajectory
+
+In this part, the path-planner selects the collision-free (s, d) trajectory with the lowest cost among the best trajectories of each planner. To accomplish this, the following process is performed:
+
+1. Calculating best collision-free trajectory for each planner
+2. Selecting the optimal trajectory with lowest cost among them
+
+#### Calculating best collision-free trajectory for each planner
+
+The best trajectory selection considering collision is done **from a constraint perspective, not from a cost perspective**. That is, the trajectory for which a collide is anticipated is excluded from consideration when selecting the best trajectory in the first place. Collision check assumes the vehicle is a rectangle and proceeds from the low cost trajectory. At each planning horizon, if one of the **squares** representing the vehicle and the opponent carries overlap, it is determined as a collision trajectory and removed from the best trajectory candidates. If the trajectory with the lowest cost is identified as not colliding, the trajectory is selected as the best trajectory to the lane.
+
+CV(Constant Velocity) model was used to predict the position of the opponent vehicle. And we applied the [Seperating Axis Theorem](http://www.dyn4j.org/2010/01/sat/) to check that the squares overlap geometrically.
+
+#### Selecting the optimal trajectory with lowest cost among them
+
+The best trajectory to each lane was determined above. Now, it's time to figure out which lane is best for the vehicle. This process is super easy. Compare the `minimal_cost` of the three planners and select the (s, d) trajectory of the planner with the lowest `minimal_cost` as the final trajectory!
+
+
+
+## Conclusion
+
+It is possible to drive without difficulty even with fairly dense traffic, and according to the designed cost, when there is a safe path that guarantees a better speed, the vehicle travels as close to `max_speed` as possible through lane change if there is slow vehicle ahead. As the degree of freedom of the project was high, It was nice to be able to think about various ways to solve the problem.
+
+It is a video that the car drives for about **30 minutes at a distance of about 22 miles** without collision without violating the constraint. Maybe it seems to be able to drive more, but it did not mean much, so it ended in the middle: [Youtube link](https://youtu.be/377zAMZBDjM)
+
+
+
+![results](./assets/results.png)
+
+
+
+## Inspirations from ...
+
+- ["Optimal trajectory generation for dynamic street scenarios in a Frenet Frame (Youtube)"](https://www.youtube.com/watch?v=Cj6tAQe7UCY)
+- My previous work: ["Intervention minimized semi-autonomous control using decoupled model predictive control"](http://ieeexplore.ieee.org/document/7995787/), H. Kim, J. Cho, D. Kim, K. Huh, IV 2017
+
