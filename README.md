@@ -4,8 +4,6 @@
 
 [![Udacity - Self-Driving Car NanoDegree](https://camo.githubusercontent.com/5b9aa393f43d7bb9cc6277140465f5625f2dae7c/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f756461636974792d7364632f6769746875622f736869656c642d6361726e642e737667)](http://www.udacity.com/drive) 
 
-[TOC]
-
 ### Introduction
 
 In this project, the goal is to design a path planner that is able to create smooth, safe paths for the car to follow along a three lane highway with traffic. A successful path planner will be able to keep inside its lane, avoid hitting other cars, and pass slower moving traffic all by using localization, sensor fusion, and map data. At the same time, the car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.
@@ -23,7 +21,9 @@ To satisfy these objectvies, the structure of this path planning algorithm is fo
 
 ### Quantitative results
 
+![01](./assets/01.gif)
 
+![02](./assets/02.gif)
 
 
 
@@ -47,35 +47,41 @@ A given map is recorded at approximately 30m intervals, so you can not obtain sm
 
 
 
+
+
 ### Initializing planners
 
 Driving can be very simple on highway unlike driving in urban situation. If you determine which lanes to drive along, you will be able to drive almost the best performance. We leveraged this this thinking. As allocating the planners one for each lane, and each planner creates the best trapectory in each lane. So there are three lanes in this project, and there's a total of three local planners. Each planner contains the following elements :
 
-```
+```c++
 typedef struct Planner {
-  double target_d; // target d in Frenet coordinate
-  vector<Vehicle> obstacles; // obstacles on this lane
-  Vehicle target_to_follow; // target vehicle to follow
-  int following_target_id; // id of target vehicle to follow
-  double dist_to_target; // distance to target vehicle
-  MatrixXd s_trajectories; // generated s-trajectories in Frenet
-  VectorXd s_costs; // corresponding s-cost for each trajectory
-  MatrixXd d_trajectories; // generated d-trajectories in Frenet
-  VectorXd d_costs; // corresponding d-cost for each trajectory
-  bool obstacle_following; // if false: velocity keeping
-  bool feasible_traj_exist; // if false: no feasible trajectory
-  int optimal_s_id; // s-trajectory id with minimal s-costs
-  int optimal_d_id; // d-trajectory id with minimal d-costs
-  double minimal_cost; // total minimal cost 
-  int iters; // how many iterations run to check collision-free trajectory
+  double target_d;              // target d in Frenet coordinate
+  vector<Vehicle> obstacles;    // obstacles on this lane
+  Vehicle target_to_follow;     // target vehicle to follow
+  int following_target_id;      // id of target vehicle to follow
+  double dist_to_target;        // distance to target vehicle
+  MatrixXd s_trajectories;      // generated s-trajectories in Frenet
+  VectorXd s_costs;             // corresponding s-cost for each trajectory
+  MatrixXd d_trajectories;      // generated d-trajectories in Frenet
+  VectorXd d_costs;             // corresponding d-cost for each trajectory
+  bool obstacle_following;      // if false: velocity keeping
+  bool feasible_traj_exist;     // if false: no feasible trajectory
+  int optimal_s_id;             // s-trajectory id with minimal s-costs
+  int optimal_d_id;             // d-trajectory id with minimal d-costs
+  double minimal_cost;          // total minimal cost 
+  int iters;                    // how many iterations run to check collision-free trajectory
 } Planner;
 ```
+
+
 
 
 
 ### Assigning nearby obstacles information into each planner
 
 The position and velocity information of the nearby vehicles from the `sensor_fusion` is transmitted to each planner. If the obstacle is currently ahead of the vehicle's position `car_s`, the planner will enter the `obstacle_following` mode to follow the ahead vehicle. In contrast, the `velocity_keeping` mode will operate if there is no obstacle ahead.
+
+
 
 
 
@@ -97,6 +103,8 @@ For more information on trajectory generation, see *"Optimal Trajectory Generati
 
 
 
+
+
 ### Selecting optimal trajectory
 
 In this part, the path-planner selects the collision-free (s, d) trajectory with the lowest cost among the best trajectories of each planner. To accomplish this, the following process is performed:
@@ -104,15 +112,21 @@ In this part, the path-planner selects the collision-free (s, d) trajectory with
 1. Calculating best collision-free trajectory for each planner
 2. Selecting the optimal trajectory with lowest cost among them
 
+
+
 #### Calculating best collision-free trajectory for each planner
 
 The best trajectory selection considering collision is done **from a constraint perspective, not from a cost perspective**. That is, the trajectory for which a collide is anticipated is excluded from consideration when selecting the best trajectory in the first place. Collision check assumes the vehicle is a rectangle and proceeds from the low cost trajectory. At each planning horizon, if one of the **squares** representing the vehicle and the opponent carries overlap, it is determined as a collision trajectory and removed from the best trajectory candidates. If the trajectory with the lowest cost is identified as not colliding, the trajectory is selected as the best trajectory to the lane.
 
 CV(Constant Velocity) model was used to predict the position of the opponent vehicle. And we applied the [Seperating Axis Theorem](http://www.dyn4j.org/2010/01/sat/) to check that the squares overlap geometrically.
 
+
+
 #### Selecting the optimal trajectory with lowest cost among them
 
 The best trajectory to each lane was determined above. Now, it's time to figure out which lane is best for the vehicle. This process is super easy. Compare the `minimal_cost` of the three planners and select the (s, d) trajectory of the planner with the lowest `minimal_cost` as the final trajectory!
+
+
 
 
 
