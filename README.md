@@ -25,7 +25,7 @@ To satisfy these objectvies, the structure of this path planning algorithm is fo
 
 ![02](./assets/02.gif)
 
-
+[`Youtube link for full-version`](https://www.youtube.com/watch?v=HFkaWMBQXGM)
 
 ### Usage
 
@@ -134,7 +134,7 @@ The best trajectory to each lane was determined above. Now, it's time to figure 
 
 It is possible to drive without difficulty even with fairly dense traffic, and according to the designed cost, when there is a safe path that guarantees a better speed, the vehicle travels as close to `max_speed` as possible through lane change if there is slow vehicle ahead. As the degree of freedom of the project was high, It was nice to be able to think about various ways to solve the problem.
 
-It is a video that the car drives for about **30 minutes at a distance of about 22 miles** without collision without violating the constraint. Maybe it seems to be able to drive more, but it did not mean much, so it ended in the middle: [Youtube link](https://youtu.be/377zAMZBDjM)
+It is a video that the car drives for about **30 minutes at a distance of about 22 miles** without collision without violating the constraint. Maybe it seems to be able to drive more, but it did not mean much, so it ended in the middle: [Youtube link](https://youtu.be/377zAMZBDjM), [Youtube link for 2x speed](https://www.youtube.com/watch?v=HFkaWMBQXGM)
 
 
 
