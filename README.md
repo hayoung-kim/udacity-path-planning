@@ -28,9 +28,16 @@ To satisfy these objectvies, the structure of this path planning algorithm is fo
 [`Youtube link for full-version`](https://www.youtube.com/watch?v=HFkaWMBQXGM)
 
 ### Usage
+#### Dependencies
+```
+cmake >= 3.5
+make >= 4.1
+gcc/g++ >= 5.4
+uWebSockets
+```
+Please see how to install these dependencies at [original udacity-path-planning repository](https://github.com/udacity/CarND-Path-Planning-Project)
 
-Check dependencies @ [original udacity-path-planning repository](https://github.com/udacity/CarND-Path-Planning-Project)
-
+#### Usage
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
